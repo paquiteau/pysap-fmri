@@ -52,7 +52,7 @@ class SparklingAcquisition(BaseFMRIAcquisition):
         self.n_coils   = None
         self.n_frames  = None
 
-        self.frame_slicer = frame_slicer or slice(0,-1,1)
+        self.frame_slicer = frame_slicer
         # load .dat infos
         if load_data:
             _twix_obj = mapVBVD(self._data_file)
@@ -62,8 +62,8 @@ class SparklingAcquisition(BaseFMRIAcquisition):
             self.n_coils = _twix_obj.hdr['Meas']['NChaMeas']
             if traj_name not in self._trajectory_file:
                 warnings.warn("The trajectory file specified in data_file is probably not the same as the one provided, using the latter.")
-            del _twix_obj
-
+            self._twix_obj = _twix_obj
+        print(".dat file red")
         # load .bin data and infos.
         if bin_load_kwargs is None:
             # HACK: the infos and data are retrieve twice to ensure the correct sampling rate.
@@ -77,7 +77,7 @@ class SparklingAcquisition(BaseFMRIAcquisition):
         self.n_shots   = infos['num_shots']
         self.n_samples = infos['num_samples_per_shot']
         self.FOV       = infos['FOV']
-        self.img_dims  = infos['dimension']
+        self.DIM       = infos['dimension']
         self.img_size  = infos['img_size']
         self.OSF       = infos['min_osf']
 
@@ -91,25 +91,30 @@ class SparklingAcquisition(BaseFMRIAcquisition):
             try:
                 self.smaps = np.load(self._smaps_file)
             except:
-                warnings.warns("Failed to load the smaps, using self calibration instead")
-                self.smaps = self._computed_smaps
+                warnings.warn("Failed to load the smaps, using self calibration instead")
+                self.smaps = self._computed_smaps(n_cpu=16)
 
-    @functools.cached_property
-    def _computed_smaps(self, use_slices=None, thres=0.1, mode='Gridding',
+    def _computed_smaps(self, use_slices=None, thresh=0.1, mode='gridding',
                   method='linear', density_comp=None, n_cpu=1,):
         """" Compute the sensitivity maps from fMRI data:
         a subset of frame is retrieve from the data, flatten and used for the estimation"""
-        select_kspace = self.kspace_data[use_slices,...]
+        if use_slices is None:
+            select_kspace = self.kspace_data
+        else:
+            select_kspace = self.kspace_data[use_slices,...]
         n_frame = select_kspace.shape[0]
-        select_kspace = np.reshape(np.roll_axis(select_kspace), (select_kspace.shape[1],
-                                                          select_kspace.shape[0]*select_kspace.shape[2]))
-        samples = np.tile(self.kspace_loc, (1, n_frame))
+        select_kspace = np.moveaxis(select_kspace,0,-1)
+        select_kspace = np.reshape(select_kspace, (select_kspace.shape[0],
+                                   select_kspace.shape[1]*select_kspace.shape[2]))
+       # select_kspace = np.moveaxis(select_kspace,0,-1)
+        samples = np.tile(self.kspace_loc, (n_frame,1))
+        print(self.img_size, select_kspace.shape,samples.shape, samples.min(axis=0).shape)
         Smaps, _ = get_Smaps(select_kspace,
                              img_shape=self.img_size,
                              samples=samples,
                              min_samples=samples.min(axis=0),
                              max_samples=samples.max(axis=0),
-                             thres=thres,
+                             thresh=(thresh,)*self.DIM,
                              mode=mode,
                              method=method,
                              density_comp=density_comp,
@@ -123,11 +128,15 @@ class SparklingAcquisition(BaseFMRIAcquisition):
         """ Get the sampled data in kspace.  N_frame x N_channel x OSF.N_shots.N_samples"""
         self._twix_obj.image.flagRemoveOS = False
         self._twix_obj.image.squeeze = True
-        a = self._twix_obj.image[:,:,:,self.frame_slicer]
+        if self.frame_slicer:
+            a = self._twix_obj.image[:,:,:,self.frame_slicer]
+        else:
+            a = self._twix_obj.image[""]
         a = np.swapaxes(a, 1, 2)
         self.n_coils = a.shape[2]
         self.n_frames = a.shape[3]
         a = np.reshape(a, (a.shape[0]*a.shape[1],a.shape[2],a.shape[3]))
+        print("kspace_data imported")
         return a.T
 
     def get_fourier_operator(self, implementation='gpuNUFFT'):
