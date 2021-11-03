@@ -8,6 +8,7 @@ from mapvbvd import mapVBVD
 from mri.reconstructors.utils.extract_sensitivity_maps import get_Smaps
 from mri.operators.utils import normalize_frequency_locations
 from mri.operators.fourier.non_cartesian import NonCartesianFFT
+from mri.operators.fourier.utils import estimate_density_compensation
 from sparkling.utils.gradient import get_kspace_loc_from_gradfile
 
 from .base import BaseFMRIAcquisition
@@ -141,10 +142,13 @@ class SparklingAcquisition(BaseFMRIAcquisition):
         return a.T
 
     def get_fourier_operator(self, implementation='gpuNUFFT'):
+        density_comp=estimate_density_compensation(self.kspace_loc,self.img_size,implementation=implementation)
+
         return NonCartesianFFT(samples=self.kspace_loc,
                                shape=self.img_size,
                                n_coils=self.n_coils,
                                implementation=implementation,
+                               density_comp=density_comp
                                )
 
     def __repr__(self) -> str :

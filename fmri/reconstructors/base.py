@@ -43,8 +43,8 @@ class BaseFMRIReconstructor(object):
         raise NotImplementedError
 
     def initialize_opt(self, opt_kwargs, metric_kwargs):
-        x_init = np.zeros((self.grad_op.fourier_op.n_coils,
-                           *self.grad_op.fourier_op.shape),dtype="complex128")
+        if self.smaps is not None:
+            x_init = np.zeros(self.smaps.shape[1:],dtype="complex128")
         if self.grad_formulation == "synthesis":
             alpha_init = self.space_linear_op.op(x_init)
         beta = self.grad_op.inv_spec_rad
@@ -59,6 +59,7 @@ class BaseFMRIReconstructor(object):
                 linear=self.space_linear_op,
                 beta_param=beta,
                 sigma_bar=opt_kwargs.pop('sigma_bar',0.96),
+                auto_iterate=opt_kwargs.pop("auto_iterate",False),
                 **opt_kwargs,
                 **metric_kwargs
             )
@@ -70,6 +71,7 @@ class BaseFMRIReconstructor(object):
                 linear=self.space_linear_op,
                 beta_param=beta,
                 lambda_param=opt_kwargs.pop("lambda_param",1.0),
+                auto_iterate=opt_kwargs.pop("auto_iterate",False),
                 **opt_kwargs,
                 **metric_kwargs,
             )
@@ -108,16 +110,22 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
         self.opt = self.initialize_opt({"cost":None}, dict())
 
         
-    def reconstruct(self, kspace_data, x_init=None):
+    def reconstruct(self, kspace_data, x_init=None, max_iter_per_frame=15):
         if self.fourier_op.n_coils != kspace_data.shape[1]:
             raise ValueError("The kspace data should have shape N_frame x N_coils x N_samples. "
                              "Also, the provided number of coils should match.")
+        if self.smaps is not None:
+            final_estimate = np.zeros((len(kspace_data),*self.smaps.shape[1:]),dtype="complex128")
+        else:
 
-        final_estimate = np.zeros((len(kspace_data),*self.fourier_op.shape))
+            final_estimate = np.zeros((len(kspace_data),*self.fourier_op.shape),dtype="complex128")
         for i in tqdm.tqdm(range(len(kspace_data))):
             self.opt._grad._obs_data=kspace_data[i,...]
-            self.opt.iterate()
-            final_estimate[i,...] = self.opt.x_final
+            self.opt.iterate(max_iter=max_iter_per_frame)
+            if self.grad_formulation == "synthesis":
+                final_estimate[i,...] = self.space_linear_op.adj_op(self.opt.x_final)
+            else:
+                final_estimate[i,...] = self.opt.x_final
         return final_estimate
 
 
