@@ -123,7 +123,8 @@ class SparklingAcquisition(BaseFMRIAcquisition):
         return Smaps
 
 
-    @functools.cached_property
+    @property
+    @functools.lru_cache(maxsize=None)
     def kspace_data(self) -> np.ndarray:
         """ Get the sampled data in kspace.  N_frame x N_channel x OSF.N_shots.N_samples"""
         self._twix_obj.image.flagRemoveOS = False
