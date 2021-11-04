@@ -142,7 +142,7 @@ class SparklingAcquisition(BaseFMRIAcquisition):
         return a.T
 
     def get_fourier_operator(self, implementation='gpuNUFFT'):
-        density_comp=estimate_density_compensation(self.kspace_loc,self.img_size,implementation=implementation)
+        density_comp=estimate_density_compensation(self.kspace_loc,self.img_size)
 
         return NonCartesianFFT(samples=self.kspace_loc,
                                shape=self.img_size,
