@@ -45,6 +45,8 @@ class BaseFMRIReconstructor(object):
     def initialize_opt(self, opt_kwargs, metric_kwargs):
         if self.smaps is not None:
             x_init = np.zeros(self.smaps.shape[1:],dtype="complex128")
+        else:
+            x_init = np.zeros(self.fourier_op.shape,dtype="complex128")
         if self.grad_formulation == "synthesis":
             alpha_init = self.space_linear_op.op(x_init)
         beta = self.grad_op.inv_spec_rad
@@ -101,7 +103,7 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
 
         elif self.grad_formulation == 'synthesis':
             if self.smaps is None:
-                self.grad_op = GradSynthesis(self.fourier_op, self.verbose)
+                self.grad_op = GradSynthesis(self.space_linear_op, self.fourier_op, self.verbose)
             else:
                 self.grad_op = GradSelfCalibrationSynthesis(self.fourier_op,self.space_linear_op, self.smaps, self.verbose)
         else:
@@ -117,8 +119,7 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
         if self.smaps is not None:
             final_estimate = np.zeros((len(kspace_data),*self.smaps.shape[1:]),dtype="complex128")
         else:
-
-            final_estimate = np.zeros((len(kspace_data),*self.fourier_op.shape),dtype="complex128")
+            final_estimate = np.zeros((len(kspace_data),self.fourier_op.n_coils, *self.fourier_op.shape),dtype="complex128")
         for i in tqdm.tqdm(range(len(kspace_data))):
             self.opt._grad._obs_data=kspace_data[i,...]
             self.opt.iterate(max_iter=max_iter_per_frame)
