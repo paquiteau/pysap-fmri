@@ -120,6 +120,7 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
             final_estimate = np.zeros((len(kspace_data),*self.smaps.shape[1:]),dtype="complex128")
         else:
             final_estimate = np.zeros((len(kspace_data),self.fourier_op.n_coils, *self.fourier_op.shape),dtype="complex128")
+        
         for i in tqdm.tqdm(range(len(kspace_data))):
             self.opt._grad._obs_data=kspace_data[i,...]
             self.opt.iterate(max_iter=max_iter_per_frame)

@@ -27,3 +27,4 @@ def dynamic_img(fmri_img, fps:float=2, normalize=True):
         obj_show.set_data(img)
         time.sleep(1./fps)
         plt.draw()
+        plt.show()
