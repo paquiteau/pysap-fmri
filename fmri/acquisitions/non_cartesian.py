@@ -102,8 +102,7 @@ class SparklingAcquisition(BaseFMRIAcquisition):
     
         self.kspace_data = add_phase_kspace(self.kspace_data,self.kspace_loc,shifts=shifts)
     
-        self.density_comp = None
-        
+
         self.n_shots   = infos['num_shots']
         self.n_samples = infos['num_samples_per_shot']
         self.FOV       = infos['FOV']
@@ -126,23 +125,34 @@ class SparklingAcquisition(BaseFMRIAcquisition):
                              max_samples=self.kspace_loc.max(axis=0),
                              mode=mode,
                              method=method,
-                             density_comp=density_comp,
+                             density_comp=self.density_comp,
                              n_cpu=n_cpu,
                              fourier_op_kwargs=kwargs)
         return smaps
-    
-    
+
+    @property
+    @functools.lru_cache(maxsize=None)
+    def density_comp(self):
+        return estimate_density_compensation(self.kspace_loc, self.img_shape)
+
+
     def get_fourier_operator(self, implementation='gpuNUFFT',**kwargs):
         if implementation =='gpuNUFFT':
-            self.density_comp = estimate_density_compensation(self.kspace_loc, self.img_shape)            
-        return NonCartesianFFT(samples=self.kspace_loc,
+            return NonCartesianFFT(samples=self.kspace_loc,
                                shape=self.img_shape,
                                n_coils=self.n_coils,
                                implementation=implementation,
                                density_comp=self.density_comp,
                                **kwargs
                                )
-        
+        else:
+            return NonCartesianFFT(samples=self.kspace_loc,
+                                   shape=self.img_shape,
+                                   n_coils=self.n_coils,
+                                   implementation=implementation,
+                                   density_comp=None,
+                                   **kwargs
+                                   )
     def __repr__(self) -> str :
         return "SparklingAcquisition(\n"\
                f"shots={self.n_shots}\n"\
