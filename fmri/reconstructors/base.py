@@ -17,7 +17,7 @@ class BaseFMRIReconstructor(object):
                  time_linear_op=None, time_regularisation=None, Smaps=None, optimizer='pogm', verbose=0,):
         self.fourier_op = fourier_op
         self.space_linear_op = space_linear_op or Identity
-        self.time_linear_op = space_linear_op or Identity
+        self.time_linear_op = time_linear_op or Identity
         self.opt_name = optimizer
         self.grad_formulation = OPTIMIZERS[optimizer]
         self.smaps = Smaps
@@ -40,13 +40,22 @@ class BaseFMRIReconstructor(object):
     def reconstruct(self, kspace_data, *args, **kwargs):
         raise NotImplementedError
 
-    def initialize_opt(self, opt_kwargs, metric_kwargs):
-        if self.smaps is not None:
-            x_init = np.zeros(self.smaps.shape[1:],dtype="complex128")
-        else:
-            x_init = np.zeros(self.fourier_op.shape,dtype="complex128")
-        if self.grad_formulation == "synthesis":
+    def initialize_opt(self, x_init=None, synthesis_init=False, opt_kwargs=None, metric_kwargs=None):
+        if x_init is None:
+            if self.smaps is not None:
+                x_init = np.zeros(self.smaps.shape[1:],dtype="complex128")
+            else:
+                x_init = np.zeros(self.fourier_op.shape,dtype="complex128")
+
+        if synthesis_init == False and  self.grad_formulation == "synthesis":
             alpha_init = self.space_linear_op.op(x_init)
+        elif self.grad_formulation == "analysis":
+            x_init = self.space_linear_op.adj_op(x_init)
+        elif synthesis_init == True and self.grad_formulation == "synthesis":
+            alpha_init = x_init
+        opt_kwargs = opt_kwargs or dict()
+        metric_kwargs = metric_kwargs or dict()
+
         beta = self.grad_op.inv_spec_rad
         if self.opt_name == "pogm":
             opt = POGM(
