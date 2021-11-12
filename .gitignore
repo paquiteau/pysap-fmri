@@ -5,6 +5,8 @@ tmp/
 
 *.py[cod]
 *.egg
+*.eggs
+*.egg-info
 build
 htmlcov
 **/.ipynb_checkpoints/
