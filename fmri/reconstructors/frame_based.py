@@ -30,13 +30,13 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
 
 
 
-    def reconstruct(self, kspace_data, x_init=None, max_iter_per_frame=15, reset_opt=True, recompute_smaps=False,smaps_kwargs=None):
+    def reconstruct(self, kspace_data, x_init=None, max_iter_per_frame=15, reset_opt=True, recompute_smaps=False, smaps_kwargs=None):
 
         if x_init is None:
             if self.smaps is None:
-                x_init = np.zeros((self.fourier_op.n_coils, *self.fourier_op.shape),dtype="complex128")
+                x_init = np.zeros((self.fourier_op.n_coils, *self.fourier_op.shape),dtype="complex64")
             else:
-                x_init = np.zeros(self.fourier_op.shape,dtype="complex128")
+                x_init = np.zeros(self.fourier_op.shape,dtype="complex64")
         if self.fourier_op.n_coils != kspace_data.shape[1]:
             raise ValueError("The kspace data should have shape N_frame x N_coils x N_samples. "
                              "Also, the provided number of coils should match.")
@@ -44,9 +44,9 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
             smaps_kwargs = dict()
 
         if self.smaps is not None:
-            final_estimate = np.zeros((len(kspace_data), *self.smaps.shape[1:]),dtype="complex128")
+            final_estimate = np.zeros((len(kspace_data), *self.smaps.shape[1:]), dtype=x_init.dtype)
         else:
-            final_estimate = np.zeros((len(kspace_data), self.fourier_op.n_coils, *self.fourier_op.shape),dtype="complex128")
+            final_estimate = np.zeros((len(kspace_data), self.fourier_op.n_coils, *self.fourier_op.shape),dtype=x_init.dtype)
 
         opt = self.initialize_opt(x_init=x_init, synthesis_init=False, opt_kwargs={"cost":None}, metric_kwargs=dict())
         next_init = x_init
