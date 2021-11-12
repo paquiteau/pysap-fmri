@@ -72,6 +72,7 @@ class SparklingAcquisition(BaseFMRIAcquisition):
             self.kspace_data = self._twix_obj.image[:,:,:,frame_slicer]
         else:
             self.kspace_data = self._twix_obj.image[""]
+
         self.kspace_data = self.kspace_data.swapaxes(1,2)
         self.kspace_data = self.kspace_data.swapaxes(0,1)
         
@@ -98,8 +99,7 @@ class SparklingAcquisition(BaseFMRIAcquisition):
         
         if normalize:
             self.kspace_loc = normalize_frequency_locations(self.kspace_loc, Kmax=None)
-    
-    
+
         self.kspace_data = add_phase_kspace(self.kspace_data,self.kspace_loc,shifts=shifts)
     
 
@@ -113,11 +113,11 @@ class SparklingAcquisition(BaseFMRIAcquisition):
         self.n_frames  = self.kspace_data.shape[0]
     
 
-    def get_smaps(self, use_rep=0, thresh=0.1,mode='gridding', method='linear', density_comp=None, n_cpu= MAX_CPU_CORE, **kwargs):
+    def get_smaps(self, use_rep=0, thresh=0.1,mode='gridding', method='linear', density_comp=None, n_cpu= MAX_CPU_CORE,ssos=False, **kwargs):
         if type(thresh) is float:
             thresh = (thresh,)*self.DIM
             
-        smaps, _ = get_Smaps(self.kspace_data[use_rep,...],
+        Smaps, Ssos = get_Smaps(self.kspace_data[use_rep,...],
                              img_shape=self.img_shape,
                              samples=self.kspace_loc,
                              thresh=thresh,
@@ -128,7 +128,10 @@ class SparklingAcquisition(BaseFMRIAcquisition):
                              density_comp=self.density_comp,
                              n_cpu=n_cpu,
                              fourier_op_kwargs=kwargs)
-        return smaps
+        if ssos:
+            return Smaps, Ssos
+        return Smaps
+
 
     @property
     @functools.lru_cache(maxsize=None)
