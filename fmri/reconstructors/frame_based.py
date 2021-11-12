@@ -55,11 +55,13 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
             self.grad_op._obs_data=kspace_data[i,...]
             # reset Smaps and optimizer if required.
             if recompute_smaps and self.smaps is not None:
-                self.grad.Smaps = get_Smaps(kspace_data[i,...],
-                                  img_shape=self.fourier_op.shape,
-                                  samples=self.fourier_op.samples,
-                                  **smaps_kwargs)
-
+                self.grad_op.Smaps, _ = get_Smaps(kspace_data[i,...],
+                                            img_shape=self.fourier_op.shape,
+                                            samples=self.fourier_op.samples,
+                                            min_samples=self.fourier_op.samples.min(axis=0),
+                                            max_samples=self.fourier_op.samples.max(axis=0),
+                                            density_comp=self.fourier_op.density_comp,
+                                            **smaps_kwargs)
             if reset_opt:
                 opt = self.initialize_opt(x_init=next_init,synthesis_init=False,  opt_kwargs={"cost":None}, metric_kwargs=dict())
             # if no reset, the internal state is kept. (dual variable, dynamic step size)
