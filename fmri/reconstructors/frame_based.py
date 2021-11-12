@@ -1,4 +1,4 @@
-import tqdm
+import progressbar
 import numpy as np
 
 from mri.operators.gradient.gradient import GradAnalysis, GradSynthesis, GradSelfCalibrationAnalysis, GradSelfCalibrationSynthesis
@@ -50,7 +50,7 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
 
         opt = self.initialize_opt(x_init=x_init, synthesis_init=False, opt_kwargs={"cost":None}, metric_kwargs=dict())
         next_init = x_init
-        for i in tqdm.tqdm(range(len(kspace_data))):
+        for i in progressbar.progressbar(range(len(kspace_data))):
             # at each step a new frame is loaded
             self.grad_op._obs_data=kspace_data[i,...]
             # reset Smaps and optimizer if required.
