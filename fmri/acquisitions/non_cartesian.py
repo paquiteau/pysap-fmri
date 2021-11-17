@@ -113,11 +113,12 @@ class SparklingAcquisition(BaseFMRIAcquisition):
         self.n_frames  = self.kspace_data.shape[0]
     
 
-    def get_smaps(self, use_rep=0, thresh=0.1,mode='gridding', method='linear', density_comp=None, n_cpu= MAX_CPU_CORE,ssos=False, **kwargs):
+    def get_smaps(self, use_rep=0, thresh=0.1, window=None, mode='gridding', method='linear', density_comp=None, n_cpu=MAX_CPU_CORE,ssos=False, **kwargs):
         if type(thresh) is float:
             thresh = (thresh,)*self.DIM
-            
-        Smaps, Ssos = get_Smaps(self.kspace_data[use_rep,...],
+        data = self.kspace_data[use_rep,...]
+
+        Smaps, Ssos = get_Smaps(data,
                              img_shape=self.img_shape,
                              samples=self.kspace_loc,
                              thresh=thresh,
@@ -125,7 +126,7 @@ class SparklingAcquisition(BaseFMRIAcquisition):
                              max_samples=self.kspace_loc.max(axis=0),
                              mode=mode,
                              method=method,
-                             density_comp=self.density_comp,
+                             density_comp=density_comp,
                              n_cpu=n_cpu,
                              fourier_op_kwargs=kwargs)
         if ssos:
