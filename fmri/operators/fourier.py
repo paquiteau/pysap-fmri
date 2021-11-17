@@ -18,11 +18,11 @@ class SpaceFourier(OperatorBase):
         self.n_frames = n_frames
         self.shape = np.array([self.n_frames, self.n_coils, *self.img_shape])
         if fourier_type == "FFT":
-            self.fourier_op = FFT(shape, n_coils=n_coils, samples=samples, **kwargs)
+            self.spatial_op = FFT(shape, n_coils=n_coils, samples=samples, **kwargs)
         elif fourier_type == "gpuNUFFT":
-            self.fourier_op = NonCartesianFFT(samples, shape, n_coils=n_coils, implementation="gpuNUFFT", **kwargs)
+            self.spatial_op = NonCartesianFFT(samples, shape, n_coils=n_coils, implementation="gpuNUFFT", **kwargs)
         elif fourier_type == "NUFFT":
-            self.fourier_op = NonCartesianFFT(samples, shape, n_coils=n_coils, implementation="cpu", **kwargs)
+            self.spatial_op = NonCartesianFFT(samples, shape, n_coils=n_coils, implementation="cpu", **kwargs)
         else:
             raise NotImplementedError(f"{fourier_type} is not a valid transform")
 
@@ -31,15 +31,17 @@ class SpaceFourier(OperatorBase):
         y = np.zeros((self.n_frames, self.n_coils, self.n_samples),dtype = x.dtype)
 
         for i_frame in range(x.shape[0]):
-            y[i_frame, ...] = self.fourier_op.op(x[i_frame,...])
+            y[i_frame, ...] = self.spatial_op.op(x[i_frame,...])
         return y
 
-
     def adj_op(self, y):
-        x = np.zeros((self.n_frames, self.n_coils, *self.img_shape),dtype = y.dtype)
+        if getattr(self.spatial_op.impl, 'uses_sense', False):
+            x = np.zeros((self.n_frames, *self.img_shape), dtype=y.dtype)
+        else:
+            x = np.zeros((self.n_frames, self.n_coils, *self.img_shape), dtype=y.dtype)
         for i_frame in range(self.n_frames):
-            x[i_frame,...] = self.fourier_op.adj_op(y[i_frame,...])
-        return x
+            x[i_frame] = self.spatial_op.adj_op(y[i_frame,...])
+        return np.asarray(x)
 
 
 
@@ -50,7 +52,7 @@ class TimeFourier(OperatorBase):
         super().__init__()
 
     def op(self, x):
-        return sp.fft.fft(x,axes=0, norm="ortho")
+        return sp.fft.fft(x,axis=0, norm="ortho")
 
     def adj_op(self, x):
-        return sp.fft.ifft(x,axes=0, norm="ortho")
+        return sp.fft.ifft(x,axis=0, norm="ortho")
