@@ -6,12 +6,12 @@ import matplotlib.pyplot as plt
 from ..utils import fmri_ssos
 
 
-def flat_matrix_view(fmri_img, ax=None):
+def flat_matrix_view(fmri_img, ax=None,figsize=None,cmap="gray"):
     """ represent the fmri data as a 2d matrix, where all the spatial dimension have been flatten out."""
     if ax is None:
-        fig, ax = plt.subplots(1,1)
+        fig, ax = plt.subplots((1,1),figsize=figsize)
 
-    ax.imshow(np.reshape(fmri_ssos(abs(fmri_img)),(fmri_img.shape[0],np.prod(fmri_img.shape[2:]))),cmap="gray")
+    ax.imshow(np.reshape(fmri_ssos(abs(fmri_img)),(fmri_img.shape[0],np.prod(fmri_img.shape[1:]))),cmap=cmap)
     return ax
 
 def dynamic_img(fmri_img, fps:float=2, normalize=True):
@@ -28,3 +28,31 @@ def dynamic_img(fmri_img, fps:float=2, normalize=True):
         time.sleep(1./fps)
         plt.draw()
         plt.show()
+
+def carrousel(fmri_img, frame_slicer=None, colorbar=False, padding=1, layout=None):
+    """ Display frames in a single plot. """
+    frame_size = np.array(fmri_img.shape[1:])
+    if frame_slicer is None:
+        frame_slicer=slice(0,max(len(fmri_img),10))
+    to_show = fmri_img[frame_slicer,...]
+    N_plots = len(to_show)
+    if layout is None and len(to_show) == 10:
+        N_row, N_cols = 2,5
+    elif layout is None:
+        N_cols = np.ceil(np.sqrt(N_plots)).astype(np.int)
+        N_row = np.floor(np.sqrt(N_plots)).astype(np.int)
+    else:
+        N_row, N_cols = layout
+    vignette = np.empty((frame_size+padding)*np.array((N_row,N_cols))-padding)
+    fig = plt.figure()
+    vignette[:] = np.NaN
+    for i in range(N_row):
+        for j in range(N_cols):
+            if j + i*N_cols >= len(to_show):
+                break
+            vignette[i*(frame_size[0]+padding):(i+1)*(frame_size[0])+ i*padding,
+                     j*(frame_size[1]+padding):(j+1)*frame_size[1]+j*padding] = abs(to_show[i*N_cols+j,...])
+            plt.text((j+0.01)*(frame_size[1]+padding), (i+0.05)*(frame_size[0]+padding), f'{i*N_cols+j}',color='red')
+    plt.imshow(vignette)
+    plt.axis('off')
+    return fig
