@@ -36,14 +36,19 @@ class LowRankPlusSparseFMRIReconstructor(GlobalFMRIReconstructor):
 
 
     def reconstruct(self, kspace_data, max_iter=30,eps=1e-5):
-        M = np.zeros((self.fourier_op.shape[0],*self.fourier_op.shape[2:]),dtype="complex128")
+        M = np.zeros((len(kspace_data),*self.fourier_op.img_shape),dtype="complex128")
 
         L = M.copy()
         S = M.copy()
 
-        M_old = np.sum(np.conjugate(self.smaps)*self.fourier_op.adj_op(kspace_data),axis=1)
+        if self.smaps is None:
+            M_old = self.fourier_op.adj_op(kspace_data)
+        else:
+            M_old = np.sum(np.conjugate(self.smaps)*self.fourier_op.adj_op(kspace_data),axis=1)
         L_old = L.copy()
         S_old = S.copy()
+
+
 
         for i in tqdm.tqdm(range(max_iter)):
             # singular value soft thresholding
@@ -53,7 +58,10 @@ class LowRankPlusSparseFMRIReconstructor(GlobalFMRIReconstructor):
             # Soft thresholding in the time sparsifying domain
             S = self.time_linear_op.adj_op(self.time_prox_op.op(self.time_linear_op.op(M_old-L_old)))
             # Data consistency: substract residual
-            M = L + S - np.sum(np.conjugate(self.smaps) * self.fourier_op.adj_op(
+            if self.smaps is None:
+                M = L +S - self.fourier_op.adj_op(self.fourier_op.op(L+S)-kspace_data)
+            else:
+                M = L + S - np.sum(np.conjugate(self.smaps) * self.fourier_op.adj_op(
                                                                 self.fourier_op.op((L+S)[:,np.newaxis,...] * self.smaps) - kspace_data),
                                 axis=1)
             if np.linalg.norm(L+S - L_old - S_old) <= eps * np.linalg.norm(L_old+S_old):

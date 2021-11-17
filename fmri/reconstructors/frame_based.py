@@ -31,22 +31,20 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
 
 
     def reconstruct(self, kspace_data, x_init=None, max_iter_per_frame=15, reset_opt=True, recompute_smaps=False, smaps_kwargs=None):
+        
+        if getattr(self.fourier_op.impl,'uses_sense', False) or self.smaps is not None:
+            x_init = np.squeeze(np.zeros(self.fourier_op.shape,dtype="complex64"))
+            final_estimate = np.zeros((len(kspace_data), *self.fourier_op.shape), dtype=x_init.dtype)
+        else:
+            x_init = np.squeeze(np.zeros((self.fourier_op.n_coils, *self.fourier_op.shape),dtype="complex64"))
+            final_estimate = np.zeros((len(kspace_data), self.fourier_op.n_coils, *self.fourier_op.shape),dtype=x_init.dtype)
 
-        if x_init is None:
-            if self.smaps is None:
-                x_init = np.zeros((self.fourier_op.n_coils, *self.fourier_op.shape),dtype="complex64")
-            else:
-                x_init = np.zeros(self.fourier_op.shape,dtype="complex64")
+
         if self.fourier_op.n_coils != kspace_data.shape[1]:
             raise ValueError("The kspace data should have shape N_frame x N_coils x N_samples. "
                              "Also, the provided number of coils should match.")
         if smaps_kwargs is None and recompute_smaps == True:
             smaps_kwargs = dict()
-
-        if self.smaps is not None:
-            final_estimate = np.zeros((len(kspace_data), *self.smaps.shape[1:]), dtype=x_init.dtype)
-        else:
-            final_estimate = np.zeros((len(kspace_data), self.fourier_op.n_coils, *self.fourier_op.shape),dtype=x_init.dtype)
 
         opt = self.initialize_opt(x_init=x_init, synthesis_init=False, opt_kwargs={"cost":None}, metric_kwargs=dict())
         next_init = x_init
@@ -54,14 +52,19 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
             # at each step a new frame is loaded
             self.grad_op._obs_data=kspace_data[i,...]
             # reset Smaps and optimizer if required.
-            if recompute_smaps and self.smaps is not None:
-                self.grad_op.Smaps, _ = get_Smaps(kspace_data[i,...],
+            if recompute_smaps and (self.smaps is not None or getattr(self.fourier_op.impl,'use_sense', False)) :
+                Smaps, _ = get_Smaps(kspace_data[i,...],
                                             img_shape=self.fourier_op.shape,
                                             samples=self.fourier_op.samples,
                                             min_samples=self.fourier_op.samples.min(axis=0),
                                             max_samples=self.fourier_op.samples.max(axis=0),
                                             density_comp=self.fourier_op.density_comp,
                                             **smaps_kwargs)
+                if getattr(self.fourier_op.impl,'uses_sense', False):
+                    self.grad_op.fourier_op.impl.setSense(Smaps)
+                else:
+                    self.grad_op.Smaps = Smaps
+                    
             if reset_opt:
                 opt = self.initialize_opt(x_init=next_init,synthesis_init=False,  opt_kwargs={"cost":None}, metric_kwargs=dict())
             # if no reset, the internal state is kept. (dual variable, dynamic step size)

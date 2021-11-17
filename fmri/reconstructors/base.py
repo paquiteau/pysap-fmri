@@ -42,10 +42,7 @@ class BaseFMRIReconstructor(object):
 
     def initialize_opt(self, x_init=None, synthesis_init=False, opt_kwargs=None, metric_kwargs=None):
         if x_init is None:
-            if self.smaps is not None:
-                x_init = np.zeros(self.smaps.shape[1:],dtype="complex128")
-            else:
-                x_init = np.zeros(self.fourier_op.shape,dtype="complex128")
+            x_init = np.squeeze(np.zeros(self.fourier_op.n_coils,*self.fourier_op.shape,dtype="complex64"))
 
         if synthesis_init == False and  self.grad_formulation == "synthesis":
             alpha_init = self.space_linear_op.op(x_init)
