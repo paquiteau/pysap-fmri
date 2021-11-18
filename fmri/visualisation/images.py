@@ -33,7 +33,8 @@ def carrousel(fmri_img, frame_slicer=None, colorbar=False, padding=1, layout=Non
     """ Display frames in a single plot. """
     frame_size = np.array(fmri_img.shape[1:])
     if frame_slicer is None:
-        frame_slicer=slice(0,max(len(fmri_img),10))
+        frame_slicer=slice(0,min(len(fmri_img),10))
+    index_select = np.arange(len(fmri_img))[frame_slicer]
     to_show = fmri_img[frame_slicer,...]
     N_plots = len(to_show)
     if layout is None and len(to_show) == 10:
@@ -44,7 +45,7 @@ def carrousel(fmri_img, frame_slicer=None, colorbar=False, padding=1, layout=Non
     else:
         N_row, N_cols = layout
     vignette = np.empty((frame_size+padding)*np.array((N_row,N_cols))-padding)
-    fig = plt.figure()
+    fig,ax = plt.subplots()
     vignette[:] = np.NaN
     for i in range(N_row):
         for j in range(N_cols):
@@ -52,7 +53,9 @@ def carrousel(fmri_img, frame_slicer=None, colorbar=False, padding=1, layout=Non
                 break
             vignette[i*(frame_size[0]+padding):(i+1)*(frame_size[0])+ i*padding,
                      j*(frame_size[1]+padding):(j+1)*frame_size[1]+j*padding] = abs(to_show[i*N_cols+j,...])
-            plt.text((j+0.01)*(frame_size[1]+padding), (i+0.05)*(frame_size[0]+padding), f'{i*N_cols+j}',color='red')
-    plt.imshow(vignette)
-    plt.axis('off')
+            ax.text((j+0.01)*(frame_size[1]+padding), (i+0.05)*(frame_size[0]+padding), f'{index_select[i*N_cols+j]}',color='red')
+    m = ax.imshow(vignette)
+    ax.axis('off')
+    if colorbar:
+        fig.colorbar(m)
     return fig
