@@ -92,26 +92,23 @@ class SparklingAcquisition(BaseFMRIAcquisition):
             self.kspace_loc, infos = get_kspace_loc_from_gradfile(self._traj_file, **bin_load_kwargs)
 
 
-        self.kspace_loc = self.kspace_loc
         self.kspace_loc = np.reshape(self.kspace_loc,
                                      (self.kspace_loc.shape[0]*self.kspace_loc.shape[1],
                                       self.kspace_loc.shape[2]))
-        
-        if normalize:
-            self.kspace_loc = normalize_frequency_locations(self.kspace_loc, Kmax=None)
-
-        self.kspace_data = add_phase_kspace(self.kspace_data,self.kspace_loc,shifts=shifts)
-    
 
         self.n_shots   = infos['num_shots']
         self.n_samples = infos['num_samples_per_shot']
-        self.FOV       = infos['FOV']
+        self.FOV       = np.asarray(infos['FOV'])
         self.DIM       = infos['dimension']
-        self.img_shape = infos['img_size']
+        self.img_shape = np.asarray(infos['img_size'])
         self.OSF       = infos['min_osf']
         self.n_coils   = int(self._twix_obj.hdr['Meas']['NChaMeas'])
         self.n_frames  = self.kspace_data.shape[0]
-    
+
+        if normalize:
+            self.kspace_loc = normalize_frequency_locations(self.kspace_loc, Kmax=self.img_shape/(2*self.FOV))
+
+        self.kspace_data = add_phase_kspace(self.kspace_data,self.kspace_loc,shifts=shifts)
 
     def get_smaps(self, use_rep=0, thresh=0.1, window=None, mode='gridding', method='linear', density_comp=None, n_cpu=MAX_CPU_CORE,ssos=False, **kwargs):
         if type(thresh) is float:
@@ -141,22 +138,17 @@ class SparklingAcquisition(BaseFMRIAcquisition):
 
 
     def get_fourier_operator(self, implementation='gpuNUFFT',**kwargs):
-        if implementation =='gpuNUFFT':
             return NonCartesianFFT(samples=self.kspace_loc,
                                shape=self.img_shape,
                                n_coils=self.n_coils,
                                implementation=implementation,
-                               density_comp=self.density_comp,
-                               **kwargs
+                               density_comp=self.density_comp if implementation == 'gpuNUFFT' else None,
+                               **kwargs,
                                )
-        else:
-            return NonCartesianFFT(samples=self.kspace_loc,
-                                   shape=self.img_shape,
-                                   n_coils=self.n_coils,
-                                   implementation=implementation,
-                                   density_comp=None,
-                                   **kwargs
-                                   )
+
+    def save(self, filename):
+        np.savez(filename, kspace_data=self.kspace_data, kspace_loc=self.kspace_loc)
+
     def __repr__(self) -> str :
         return "SparklingAcquisition(\n"\
                f"shots={self.n_shots}\n"\
