@@ -12,33 +12,38 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
     def __init__(self, fourier_op, space_linear_op, space_regularisation, optimizer="pogm",Smaps=None,verbose=0):
         super().__init__(fourier_op, space_linear_op, space_regularisation, optimizer=optimizer,Smaps=Smaps,verbose=verbose)
 
+    def get_grad_op(self, fourier_op=None):
+
+        fourier_op = self.fourier_op if fourier_op is None else fourier_op
+
         if self.grad_formulation == 'analysis':
             if self.smaps is None:
-                self.grad_op = GradAnalysis(self.fourier_op, verbose=self.verbose)
+                return GradAnalysis(fourier_op, verbose=self.verbose)
             else:
-                self.grad_op = GradSelfCalibrationAnalysis(fourier_op=self.fourier_op,
+                return GradSelfCalibrationAnalysis(fourier_op=fourier_op,
                                                            Smaps=self.smaps,
                                                            verbose=self.verbose,
                                                            )
         elif self.grad_formulation == 'synthesis':
             if self.smaps is None:
-                self.grad_op = GradSynthesis(self.space_linear_op, self.fourier_op, self.verbose)
+                return GradSynthesis(self.space_linear_op, fourier_op, self.verbose)
             else:
-                self.grad_op = GradSelfCalibrationSynthesis(self.fourier_op, self.space_linear_op, self.smaps, self.verbose)
+                return GradSelfCalibrationSynthesis(fourier_op, self.space_linear_op, self.smaps, self.verbose)
         else:
             raise ValueError("Unknown Gradient formuation")
 
+    def reconstruct(self, kspace_data, x_init=None, max_iter_per_frame=15, reset_opt=True, recompute_smaps=False, smaps_kwargs=None,warm_x=True):
 
+        grad_op = self.get_grad_op()
 
-    def reconstruct(self, kspace_data, x_init=None, max_iter_per_frame=15, reset_opt=True, recompute_smaps=False, smaps_kwargs=None):
-        
         if getattr(self.fourier_op.impl,'uses_sense', False) or self.smaps is not None:
-            x_init = np.squeeze(np.zeros(self.fourier_op.shape,dtype="complex64"))
+            if x_init is None:
+                x_init = np.squeeze(np.zeros(self.fourier_op.shape,dtype="complex64"))
             final_estimate = np.zeros((len(kspace_data), *self.fourier_op.shape), dtype=x_init.dtype)
         else:
-            x_init = np.squeeze(np.zeros((self.fourier_op.n_coils, *self.fourier_op.shape),dtype="complex64"))
+            if x_init is None:
+                x_init = np.squeeze(np.zeros((self.fourier_op.n_coils, *self.fourier_op.shape),dtype="complex64"))
             final_estimate = np.zeros((len(kspace_data), self.fourier_op.n_coils, *self.fourier_op.shape),dtype=x_init.dtype)
-
 
         if self.fourier_op.n_coils != kspace_data.shape[1]:
             raise ValueError("The kspace data should have shape N_frame x N_coils x N_samples. "
@@ -46,11 +51,13 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
         if smaps_kwargs is None and recompute_smaps == True:
             smaps_kwargs = dict()
 
-        opt = self.initialize_opt(x_init=x_init, synthesis_init=False, opt_kwargs={"cost":None}, metric_kwargs=dict())
+        opt = self.initialize_opt(grad_op, x_init=x_init, synthesis_init=False, opt_kwargs={"cost":None}, metric_kwargs=dict())
         next_init = x_init
-        for i in progressbar.progressbar(range(len(kspace_data))):
+        totalPB =  progressbar.ProgressBar(max_val=len(kspace_data))
+        totalPB.start()
+        for i in range(len(kspace_data)):
             # at each step a new frame is loaded
-            self.grad_op._obs_data=kspace_data[i,...]
+            grad_op._obs_data=kspace_data[i,...]
             # reset Smaps and optimizer if required.
             if recompute_smaps and (self.smaps is not None or getattr(self.fourier_op.impl,'use_sense', False)) :
                 Smaps, _ = get_Smaps(kspace_data[i,...],

@@ -40,9 +40,9 @@ class BaseFMRIReconstructor(object):
     def reconstruct(self, kspace_data, *args, **kwargs):
         raise NotImplementedError
 
-    def initialize_opt(self, x_init=None, synthesis_init=False, opt_kwargs=None, metric_kwargs=None):
+    def initialize_opt(self, grad_op, x_init=None, synthesis_init=False, opt_kwargs=None, metric_kwargs=None):
         if x_init is None:
-            x_init = np.squeeze(np.zeros(self.fourier_op.n_coils,*self.fourier_op.shape,dtype="complex64"))
+            x_init = np.squeeze(np.zeros(grad_op.fourier_op.n_coils,*grad_op.fourier_op.shape,dtype="complex64"))
 
         if synthesis_init == False and  self.grad_formulation == "synthesis":
             alpha_init = self.space_linear_op.op(x_init)
@@ -53,14 +53,14 @@ class BaseFMRIReconstructor(object):
         opt_kwargs = opt_kwargs or dict()
         metric_kwargs = metric_kwargs or dict()
 
-        beta = self.grad_op.inv_spec_rad
+        beta = grad_op.inv_spec_rad
         if self.opt_name == "pogm":
             opt = POGM(
                 u=alpha_init,
                 x=alpha_init,
                 y=alpha_init,
                 z=alpha_init,
-                grad=self.grad_op,
+                grad=grad_op,
                 prox=self.space_prox_op,
                 linear=self.space_linear_op,
                 beta_param=beta,
@@ -72,7 +72,7 @@ class BaseFMRIReconstructor(object):
         elif self.opt_name == "fista":
             opt = ForwardBackward(
                 x=x_init,
-                grad=self.grad_op,
+                grad=grad_op,
                 prox=self.space_prox_op,
                 linear=self.space_linear_op,
                 beta_param=beta,
