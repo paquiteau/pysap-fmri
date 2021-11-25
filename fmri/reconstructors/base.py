@@ -1,20 +1,50 @@
+"""
+Base class for Reconstructors.
+
+See Also:
+---------
+fmri.reconstructors.frame_base
+fmri.reconstructors.full
+"""
 import warnings
-import numpy as np
 
 from modopt.opt.linear import Identity
-from modopt.opt.algorithms import POGM, ForwardBackward
 
 
 OPTIMIZERS = {'pogm': 'synthesis',
               'fista':  'analysis',
-               None: None}
+              None: None}
 
 
 class BaseFMRIReconstructor(object):
-    """ This class hold common attributes and methods for fMRI reconstruction """
+    """This class hold common attributes and methods for fMRI reconstruction.
+
+    Attributes
+    ----------
+    fourier_op: OperatorBase
+        Operator for the fourier transform of each frame
+    space_linear_op: OperatorBase
+        Linear operator (eg Wavelet) using for the spatial regularisation
+    time_linear_op: OperatorBase
+        Linear operator (eg Wavelet) using for the time regularisation
+    space_prox_op: OperatorBase
+        Proximal Operator for the spatial regularisation
+    time_prox_op: OperatorBase
+        Proximal Operator for the time regularisation
+    opt_name: "pogm" or "fista"
+        Optimisation algorithm to use
+    grad_formulation: "synthesis" or "analysis"
+        Determines in which framework the problem will be solve.
+    smaps: ndarray, default None
+        sensibility Maps for the reconstruction.
+        If None, Smaps can be provided with the fourier operator.
+        If no Smaps is available, performs a calibrationless reconstruction.
+    """
 
     def __init__(self, fourier_op, space_linear_op, space_regularisation=None,
-                 time_linear_op=None, time_regularisation=None, Smaps=None, optimizer='pogm', verbose=0,):
+                 time_linear_op=None, time_regularisation=None, Smaps=None,
+                 optimizer='pogm', verbose=0,):
+        """Instantiate Base reconstruction."""
         self.fourier_op = fourier_op
         self.space_linear_op = space_linear_op or Identity
         self.time_linear_op = time_linear_op or Identity
@@ -38,49 +68,5 @@ class BaseFMRIReconstructor(object):
             self.time_prox_op = time_regularisation
 
     def reconstruct(self, kspace_data, *args, **kwargs):
+        """Reconstruct from the kspace_data."""
         raise NotImplementedError
-
-    def initialize_opt(self, grad_op, x_init=None, synthesis_init=False, opt_kwargs=None, metric_kwargs=None):
-        if x_init is None:
-            x_init = np.squeeze(np.zeros(grad_op.fourier_op.n_coils,*grad_op.fourier_op.shape,dtype="complex64"))
-
-        if synthesis_init == False and  self.grad_formulation == "synthesis":
-            alpha_init = self.space_linear_op.op(x_init)
-        elif self.grad_formulation == "analysis":
-            x_init = self.space_linear_op.adj_op(x_init)
-        elif synthesis_init == True and self.grad_formulation == "synthesis":
-            alpha_init = x_init
-        opt_kwargs = opt_kwargs or dict()
-        metric_kwargs = metric_kwargs or dict()
-
-        beta = grad_op.inv_spec_rad
-        if self.opt_name == "pogm":
-            opt = POGM(
-                u=alpha_init,
-                x=alpha_init,
-                y=alpha_init,
-                z=alpha_init,
-                grad=grad_op,
-                prox=self.space_prox_op,
-                linear=self.space_linear_op,
-                beta_param=beta,
-                sigma_bar=opt_kwargs.pop('sigma_bar',0.96),
-                auto_iterate=opt_kwargs.pop("auto_iterate",False),
-                **opt_kwargs,
-                **metric_kwargs
-            )
-        elif self.opt_name == "fista":
-            opt = ForwardBackward(
-                x=x_init,
-                grad=grad_op,
-                prox=self.space_prox_op,
-                linear=self.space_linear_op,
-                beta_param=beta,
-                lambda_param=opt_kwargs.pop("lambda_param",1.0),
-                auto_iterate=opt_kwargs.pop("auto_iterate",False),
-                **opt_kwargs,
-                **metric_kwargs,
-            )
-        else:
-            raise ValueError(f"Optimizer {self.opt_class} not implemented")
-        return opt
