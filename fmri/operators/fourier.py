@@ -6,7 +6,6 @@ from mri.operators.fourier.cartesian import FFT
 from mri.operators.fourier.non_cartesian import NonCartesianFFT
 
 
-
 class SpaceFourier(OperatorBase):
     """ Spatial Fourier Transform on fMRI data """
 
@@ -18,31 +17,36 @@ class SpaceFourier(OperatorBase):
         self.n_frames = n_frames
         self.shape = np.array([self.n_frames, self.n_coils, *self.img_shape])
         if fourier_type == "FFT":
-            self.spatial_op = FFT(shape, n_coils=n_coils, samples=samples, **kwargs)
+            self.spatial_op = FFT(shape, n_coils=n_coils,
+                                  samples=samples, **kwargs)
         elif fourier_type == "gpuNUFFT":
-            self.spatial_op = NonCartesianFFT(samples, shape, n_coils=n_coils, implementation="gpuNUFFT", **kwargs)
+            self.spatial_op = NonCartesianFFT(
+                samples, shape, n_coils=n_coils, implementation="gpuNUFFT", **kwargs)
         elif fourier_type == "NUFFT":
-            self.spatial_op = NonCartesianFFT(samples, shape, n_coils=n_coils, implementation="cpu", **kwargs)
+            self.spatial_op = NonCartesianFFT(
+                samples, shape, n_coils=n_coils, implementation="cpu", **kwargs)
         else:
-            raise NotImplementedError(f"{fourier_type} is not a valid transform")
+            raise NotImplementedError(
+                f"{fourier_type} is not a valid transform")
 
     def op(self, x):
         # x is a n_frame x n_coils x shape array
-        y = np.zeros((self.n_frames, self.n_coils, self.n_samples),dtype = x.dtype)
+        y = np.zeros((self.n_frames, self.n_coils,
+                     self.n_samples), dtype=x.dtype)
 
         for i_frame in range(x.shape[0]):
-            y[i_frame, ...] = self.spatial_op.op(x[i_frame,...])
+            y[i_frame, ...] = self.spatial_op.op(x[i_frame, ...])
         return y
 
     def adj_op(self, y):
         if getattr(self.spatial_op.impl, 'uses_sense', False):
             x = np.zeros((self.n_frames, *self.img_shape), dtype=y.dtype)
         else:
-            x = np.zeros((self.n_frames, self.n_coils, *self.img_shape), dtype=y.dtype)
+            x = np.zeros((self.n_frames, self.n_coils,
+                         *self.img_shape), dtype=y.dtype)
         for i_frame in range(self.n_frames):
-            x[i_frame] = self.spatial_op.adj_op(y[i_frame,...])
+            x[i_frame] = self.spatial_op.adj_op(y[i_frame, ...])
         return np.asarray(x)
-
 
 
 class TimeFourier(OperatorBase):
@@ -52,7 +56,23 @@ class TimeFourier(OperatorBase):
         super().__init__()
 
     def op(self, x):
-        return sp.fft.fft(x,axis=0, norm="ortho")
+        """Operator
+
+        Apply the fourier transform on the time axis, voxel wise
+        """
+        return sp.fft.ifftshift(
+            sp.fft.fft(
+                sp.fft.fftshift(x, axis=0),
+                axis=0, norm="ortho"),
+            axis=0)
 
     def adj_op(self, x):
-        return sp.fft.ifft(x,axis=0, norm="ortho")
+        """Adjoint Operator.
+
+        Apply the Inverse fourier transform on the time axis, voxel wise
+        """
+        return sp.fft.fftshift(
+            sp.fft.ifft(
+                sp.fft.ifftshift(x, axis=0),
+                axis=0, norm="ortho"),
+            axis=0)

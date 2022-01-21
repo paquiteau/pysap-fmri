@@ -1,21 +1,18 @@
 import functools
 import os
 import warnings
-
+import pickle
 import numpy as np
 from mapvbvd import mapVBVD
-
-from mri.operators.utils import normalize_frequency_locations
 from mri.operators.fourier.non_cartesian import NonCartesianFFT
 from mri.operators.fourier.utils import estimate_density_compensation
+from mri.operators.utils import normalize_frequency_locations
+from mri.reconstructors.utils.extract_sensitivity_maps import get_Smaps
 from sparkling.utils.gradient import get_kspace_loc_from_gradfile
 
 from .base import BaseFMRIAcquisition
 from .utils import add_phase_kspace
-
 from ..utils import MAX_CPU_CORE
-
-from mri.reconstructors.utils.extract_sensitivity_maps import get_Smaps
 
 
 class SparklingAcquisition(BaseFMRIAcquisition):
@@ -91,16 +88,16 @@ class SparklingAcquisition(BaseFMRIAcquisition):
         if traj_name not in self._traj_file:
             warnings.warn(
                 "The trajectory file specified in data_file is probably not the same as the one provided, using the latter.")
-        self._twix_obj = _twix_obj
-        self._twix_obj.image.flagRemoveOS = False
-        self._twix_obj.image.squeeze = True
+        _twix_obj = _twix_obj
+        _twix_obj.image.flagRemoveOS = False
+        _twix_obj.image.squeeze = True
 
-        if len(self._twix_obj.image.sqzSize) > 4:
+        if len(_twix_obj.image.sqzSize) > 4:
             raise ValueError("Data import with averaging is not available.")
         if frame_slicer is not None:
-            self.kspace_data = self._twix_obj.image[:, :, :, frame_slicer]
+            self.kspace_data = _twix_obj.image[:, :, :, frame_slicer]
         else:
-            self.kspace_data = self._twix_obj.image[""]
+            self.kspace_data = _twix_obj.image[""]
 
         self.kspace_data = self.kspace_data.swapaxes(1, 2)
         self.kspace_data = self.kspace_data.swapaxes(0, 1)
@@ -130,9 +127,9 @@ class SparklingAcquisition(BaseFMRIAcquisition):
         self.n_samples = infos['num_samples_per_shot']
         self.FOV = np.asarray(infos['FOV'])
         self.DIM = infos['dimension']
-        self.img_shape = np.asarray(infos['img_size'])
+        self.img_shape = infos['img_size']
         self.OSF = infos['min_osf']
-        self.n_coils = int(self._twix_obj.hdr['Meas']['NChaMeas'])
+        self.n_coils = int(_twix_obj.hdr['Meas']['NChaMeas'])
         self.n_frames = self.kspace_data.shape[0]
 
         if normalize:
@@ -149,21 +146,21 @@ class SparklingAcquisition(BaseFMRIAcquisition):
             thresh = (thresh,)*self.DIM
         data = self.kspace_data[use_rep, ...]
 
-        Smaps, Ssos = get_Smaps(data,
-                                img_shape=self.img_shape,
-                                samples=self.kspace_loc,
-                                thresh=thresh,
-                                min_samples=self.kspace_loc.min(axis=0),
-                                max_samples=self.kspace_loc.max(axis=0),
-                                mode=mode,
-                                window_fun=window_fun,
-                                method=method,
-                                density_comp=density_comp,
-                                n_cpu=n_cpu,
-                                fourier_op_kwargs=kwargs)
+        smaps, sos = get_Smaps(data,
+                               img_shape=self.img_shape,
+                               samples=self.kspace_loc,
+                               thresh=thresh,
+                               min_samples=self.kspace_loc.min(axis=0),
+                               max_samples=self.kspace_loc.max(axis=0),
+                               mode=mode,
+                               window_fun=window_fun,
+                               method=method,
+                               density_comp=density_comp,
+                               n_cpu=n_cpu,
+                               fourier_op_kwargs=kwargs)
         if ssos:
-            return Smaps, Ssos
-        return Smaps
+            return smaps, ssos
+        return smaps
 
     @property
     @functools.lru_cache(maxsize=None)
@@ -189,6 +186,11 @@ class SparklingAcquisition(BaseFMRIAcquisition):
         """Save the kspace_data and sampling pattern."""
         np.savez(filename, kspace_data=self.kspace_data,
                  kspace_loc=self.kspace_loc)
+
+    def save_pickle(self, filename):
+        """Save object."""
+        with open(filename, "wb") as f:
+            pickle.dump(self, f, protocol=4)
 
     def __repr__(self):
         return "SparklingAcquisition(\n"\
