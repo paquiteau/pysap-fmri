@@ -1,26 +1,22 @@
-""" Reconstructor for fMRI data using full reconstruction paradigm. """
+"""Reconstructor for fMRI data using full reconstruction paradigm."""
 
 import numpy as np
 import tqdm
-
-from modopt.opt.linear import LinearParent, Identity, LinearComposition, make_adjoint
-from modopt.opt.proximity import SparseThreshold
-from modopt.opt.algorithms import ForwardBackward, FastADMM
+from modopt.opt.algorithms import FastADMM, ForwardBackward
 from modopt.opt.gradient import GradBasic
+from modopt.opt.linear import Identity, LinearParent
+from modopt.opt.proximity import SparseThreshold
 
 from ..operators.fourier import TimeFourier
-from ..operators.svt import SingularValueThreshold
-from ..optimizers.admm import FastADMM
+from ..operators.svt import FlattenSVT, SingularValueThreshold
 from .base import BaseFMRIReconstructor
-
-
 
 
 class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
     """Implement the reconstruction proposed in Petrov et al.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     fourier_op: SpaceFourierOperator
         The fourier operator the fmri data
     lowrank_thresh: float, default=1e-3
@@ -32,11 +28,14 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
 
     References
     ----------
-
     https://doi.org/10.1016/j.neuroimage.2017.06.004
     """
 
-    def __init__(self, fourier_op, lowrank_thresh=1e-3, sparse_thresh=1e-3, Smaps=None):
+    def __init__(self,
+                 fourier_op,
+                 lowrank_thresh=1e-3,
+                 sparse_thresh=1e-3,
+                 smaps=None):
         super().__init__(
             fourier_op=fourier_op,
             space_linear_op=Identity(),
@@ -50,7 +49,7 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
                 Identity(),
                 sparse_thresh,
                 thresh_type="soft"),
-            Smaps=Smaps,
+            Smaps=smaps,
         )
 
     def reconstruct(self, kspace_data, max_iter=30, eps=1e-5):
@@ -65,6 +64,14 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
         eps:
             precision threshold
 
+        Returns
+        -------
+        M: np.ndarray
+            Global fMRI estimation. M = L+S
+        L: np.ndarray
+            Low Rank fMRI estimation
+        S: np.ndarray
+            Sparse fMRI estimation
         """
         M = np.zeros((len(kspace_data), *self.fourier_op.img_shape),
                      dtype="complex128")
@@ -75,8 +82,9 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
         if self.smaps is None:
             M_old = self.fourier_op.adj_op(kspace_data)
         else:
-            M_old = np.sum(np.conjugate(self.smaps) *
-                           self.fourier_op.adj_op(kspace_data), axis=1)
+            M_old = np.sum(
+                np.conjugate(self.smaps) * self.fourier_op.adj_op(kspace_data),
+                axis=1)
         L_old = L.copy()
         S_old = S.copy()
 
@@ -115,11 +123,15 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
 class ADMMReconstructor(BaseFMRIReconstructor):
     """Implement the ADMM algorithm to solve fMRI problems."""
 
-    def __init__(self, fourier_op, lowrank_thresh=1e-3, sparse_thresh=1e-3, Smaps=None):
+    def __init__(self,
+                 fourier_op,
+                 lowrank_thresh=1e-3,
+                 sparse_thresh=1e-3,
+                 smaps=None):
         super().__init__(
             fourier_op=fourier_op,
             space_linear_op=Identity(),
-            space_regularisation=SingularValueThreshold(
+            space_regularisation=FlattenSVT(
                 threshold=lowrank_thresh,
                 initial_rank=10,
                 thresh_type="soft",
@@ -129,38 +141,51 @@ class ADMMReconstructor(BaseFMRIReconstructor):
                 Identity(),
                 sparse_thresh,
                 thresh_type="soft"),
-            Smaps=Smaps,
+            Smaps=smaps,
         )
 
-        self.fourierSpaceTime_op = LinearComposition(
-            fourier_op,
-            make_adjoint(self.time_linear_op),
+        self.fourierSpaceTime_op = LinearParent(
+            op=lambda x: self.fourier_op.op(self.time_linear_op.adj_op(x)),
+            adj_op=lambda x: self.time_linear_op.op(self.fourier_op.adj_op(x)),
         )
 
     def _optimize_x(self, init_value, obs_value, max_iter=5, **kwargs):
         grad = GradBasic(op=self.fourier_op.op,
-                         trans_op=self.fourier_op.op,
-                         obs_data=obs_value,
+                         trans_op=self.fourier_op.adj_op,
+                         input_data=obs_value,
                          )
-        opt = ForwardBackward(init_value, grad, self.space_prox_op, **kwargs)
-        opt.iterate()
+        opt = ForwardBackward(
+            init_value,
+            grad,
+            self.space_prox_op,
+            cost=None,
+            auto_iterate=False,
+            **kwargs)
+        opt.iterate(max_iter)
+
         opt.retrieve_outputs()
         return opt.x_final
 
     def _optimize_z(self, init_value, obs_value, max_iter=5, **kwargs):
         grad = GradBasic(op=self.fourierSpaceTime_op.op,
-                         trans_op=self.fourierSpaceTime_op.op,
-                         obs_data=obs_value,
+                         trans_op=self.fourierSpaceTime_op.adj_op,
+                         input_data=obs_value,
                          )
-        opt = ForwardBackward(init_value, grad, self.time_prox_op, **kwargs)
-        opt.iterate()
+        opt = ForwardBackward(
+            init_value,
+            grad,
+            self.time_prox_op,
+            cost=None,
+            auto_iterate=False,
+            **kwargs)
+
+        opt.iterate(max_iter)
         opt.retrieve_outputs()
 
         return opt.x_final
 
     def reconstruct(self, kspace_data, max_iter=15, max_subiter=5, **kwargs):
-        """
-        Perform the reconstruction.
+        """Perform the reconstruction.
 
         Parameters
         ----------
@@ -171,11 +196,6 @@ class ADMMReconstructor(BaseFMRIReconstructor):
         kwargs: dict
             Extra arguments for the initialisation of ADMM
 
-        See Also
-        --------
-        modopt.opt.algorithms.FastADMM
-        BaseFMRIReconstructor: parent class
-
         Returns
         -------
         M: array_like
@@ -184,15 +204,29 @@ class ADMMReconstructor(BaseFMRIReconstructor):
             low rank estimation
         S: array_like
             time-frequency sparse esimation
+
+        See Also
+        --------
+        modopt.opt.algorithms.FastADMM
+        BaseFMRIReconstructor: parent class
+
         """
-        ADMM = FastADMM(A=self.fourier_op,
-                        B=self.fourierSpaceTime_op,
-                        c=kspace_data,
-                        solver1=self._optimize_x,
-                        solver2=self._optimize_z,
-                        max_iter1=max_subiter,
-                        max_iter2=max_subiter,
-                        **kwargs)
+        x = np.zeros((len(kspace_data), *self.fourier_op.img_shape),
+                     dtype="complex64")
+
+
+        ADMM = FastADMM(
+            x=x,
+            z=self.time_linear_op.op(x),
+            u=np.zeros_like(kspace_data),
+            A=self.fourier_op,
+            B=self.fourierSpaceTime_op,
+            c=kspace_data,
+            solver1=self._optimize_x,
+            solver2=self._optimize_z,
+            max_iter1=max_subiter,
+            max_iter2=max_subiter,
+            **kwargs)
 
         ADMM.iterate(max_iter)
 

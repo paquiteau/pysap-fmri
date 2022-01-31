@@ -98,7 +98,7 @@ class SparklingAcquisition(BaseFMRIAcquisition):
             self.kspace_data = _twix_obj.image[:, :, :, frame_slicer]
         else:
             self.kspace_data = _twix_obj.image[""]
-
+        
         self.kspace_data = self.kspace_data.swapaxes(1, 2)
         self.kspace_data = self.kspace_data.swapaxes(0, 1)
 
@@ -106,18 +106,19 @@ class SparklingAcquisition(BaseFMRIAcquisition):
                                       (self.kspace_data.shape[0]*self.kspace_data.shape[1],
                                        self.kspace_data.shape[2], self.kspace_data.shape[3]))
         self.kspace_data = self.kspace_data.T
-
+        # if frame_slicer is not None:
+        #     self.kspace_data = self.kspace_data[frame_slicer, ...]
+        
         # load .bin data and infos.
         if bin_load_kwargs is None:
             # HACK: the infos and data are retrieve twice to ensure the correct sampling rate.
-            self.kspace_loc, infos = get_kspace_loc_from_gradfile(
-                self._traj_file)
+            self.kspace_loc, infos = get_kspace_loc_from_gradfile(self._traj_file)
             self.kspace_loc, _ = get_kspace_loc_from_gradfile(self._traj_file,
                                                               dwell_time=0.01/float(infos['min_osf']),
                                                               num_adc_samples=infos['num_samples_per_shot']*infos['min_osf'])
         else:
-            self.kspace_loc, infos = get_kspace_loc_from_gradfile(
-                self._traj_file, **bin_load_kwargs)
+            self.kspace_loc, infos = get_kspace_loc_from_gradfile(self._traj_file, 
+                                                                  **bin_load_kwargs)
 
         self.kspace_loc = np.reshape(self.kspace_loc,
                                      (self.kspace_loc.shape[0]*self.kspace_loc.shape[1],
