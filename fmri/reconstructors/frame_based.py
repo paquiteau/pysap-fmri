@@ -125,7 +125,10 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
                                      metric_kwargs=dict())
             # if no reset, the internal state is kept.
             # (dual variable, dynamic step size)
-            opt.iterate(max_iter=max_iter_per_frame)
+            if i == 0:
+                opt.iterate(max_iter=3 * max_iter_per_frame)
+            else:
+                opt.iterate(max_iter=max_iter_per_frame)
 
             # Prepare for next iteration and save results
             if self.grad_formulation == "synthesis":
@@ -149,7 +152,7 @@ class ParallelFMRIReconstructor(SequentialFMRIReconstructor):
     Time frame are reconstructed independently, and in parallel to speed up the reconstruction
     """
 
-    def reconstruct(self, kspace_data, x_init=None, max_iter_per_frame=15, n_jobs=3, smaps_kwargs=None):
+    def reconstruct(self, kspace_data, x_init=None, max_iter_per_frame=30, n_jobs=3, smaps_kwargs=None):
         """Reconstruct using Parallel method."""
         def oneframe(kspace_data, idx, x_init, fourier_kwargs, grad_kwargs,
                      smaps_kwargs, linear_op, prox_op, opt_name):
