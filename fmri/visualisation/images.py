@@ -35,6 +35,7 @@ def dynamic_img(fmri_img, fps: float = 2, normalize=True):
 
 def carrousel(
     fmri_img,
+    ax=None,
     frame_slicer=None,
     colorbar=False,
     pad=1,
@@ -59,19 +60,22 @@ def carrousel(
     elif layout is None:
         n_cols = np.ceil(np.sqrt(n_plots)).astype(np.int)
         n_row = np.floor(np.sqrt(n_plots)).astype(np.int)
+        if n_cols*n_row < n_plots:
+            n_cols += 1
     else:
         n_row, n_cols = layout
     vignette = np.empty((f_size + pad) * np.array((n_row, n_cols)) - pad)
-    fig, ax = plt.subplots()
+    if ax is None:
+        fig, ax = plt.subplots()
     vignette[:] = np.NaN
     for i in range(n_row):
         for j in range(n_cols):
             if j + i * n_cols >= len(to_show):
                 break
             if normalized:
-                show = normalize(abs(to_show[i * n_cols]))
+                show = normalize(abs(to_show[i * n_cols + j]))
             else:
-                show = abs(to_show[i * n_cols])
+                show = abs(to_show[i * n_cols + j])
             vignette[
                 i * (f_size[0] + pad):(i + 1) * (f_size[0]) + i * pad,
                 j * (f_size[1] + pad):(j + 1) * f_size[1] + j * pad] = show
@@ -83,4 +87,4 @@ def carrousel(
     ax.axis('off')
     if colorbar:
         fig.colorbar(m)
-    return fig
+    return ax
