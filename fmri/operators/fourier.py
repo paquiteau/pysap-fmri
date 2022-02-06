@@ -52,11 +52,33 @@ class SpaceFourier(OperatorBase):
                          *self.img_shape), dtype=y.dtype)
         for i_frame in range(self.n_frames):
             x[i_frame] = self.spatial_op.adj_op(y[i_frame, ...])
-        return np.asarray(x)
+        return x
 
+    def data_consistency(self, x, obs_data):
+        """Compute data Consistency Operation.
+
+        Compute adj_op(op(x) - obs_data)
+        """
+        if getattr(self.spatial_op.impl, 'uses_sense', False):
+            gradient = np.zeros(
+                (self.n_frames, *self.img_shape), dtype=x.dtype)
+        else:
+            gradient = np.zeros((self.n_frames, self.n_coils,
+                                 *self.img_shape), dtype=x.dtype)
+
+        if self.fourier_type == "gpuNUFFT": # not stable yet
+            for i_frame in range(self.n_frames):
+                gradient[i_frame] = self.spatial_op.impl.data_consistency(
+                    x[i_frame], obs_data[i_frame])
+        else:
+            for i_frame in range(self.n_frames):
+                gradient[i_frame] = self.spatial_op.adj_op(
+                    self.spatial_op.op(x[i_frame]) - obs_data[i_frame])
+
+        return gradient
 
 class SpaceFourierMulti(OperatorBase):
-    """Operator for Fourier Transform non constant Kspace trajectory samples."""
+    """Operator for Fourier Transform non constant Kspace traj samples."""
 
     def __init__(self, shape, n_coils, samples, n_jobs,
                  fourier_type="FFT", **kwargs):

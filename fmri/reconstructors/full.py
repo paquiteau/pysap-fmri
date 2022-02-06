@@ -78,7 +78,7 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
 
         L = M.copy()
         S = M.copy()
-
+        tmp = M.copy()
         if self.smaps is None:
             M_old = self.fourier_op.adj_op(kspace_data)
         else:
@@ -88,30 +88,28 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
         L_old = L.copy()
         S_old = S.copy()
 
-        for _ in tqdm.tqdm(range(max_iter)):
+        for itr in tqdm.tqdm(range(max_iter)):
             # singular value soft thresholding
-            L = self.space_prox_op.op(
-                (M_old - S_old).reshape(self.fourier_op.n_frames,
-                                        np.prod(self.fourier_op.img_shape)))
-            L = np.reshape(L, (self.fourier_op.n_frames,
-                           *self.fourier_op.img_shape))
-
+            tmp = M_old - S_old
+            L = self.space_prox_op.op(tmp)
             # Soft thresholding in the time sparsifying domain
-            S = self.time_linear_op.adj_op(
-                self.time_prox_op.op(self.time_linear_op.op(M_old - L_old)))
+            S = self.time_linear_op.adj_op(self.time_prox_op.op(self.time_linear_op.op(tmp)))
             # Data consistency: substract residual
+            tmp = L + S
             if self.smaps is None:
-                M = L + S - \
-                    self.fourier_op.adj_op(
-                        self.fourier_op.op(L + S) - kspace_data)
+                # M = L + S - \
+                    # self.fourier_op.adj_op(
+                    #     self.fourier_op.op(L + S) - kspace_data)
+                M = tmp - \
+                    self.fourier_op.data_consistency(tmp,kspace_data)
             else:
-                M = L + S - np.sum(
+                M = tmp - np.sum(
                     np.conjugate(self.smaps) * self.fourier_op.adj_op(
                         self.fourier_op.op(
-                            (L + S)[:, np.newaxis, ...] * self.smaps) - kspace_data),
+                            tmp[:, np.newaxis, ...] * self.smaps) - kspace_data),
                     axis=1)
-            if np.linalg.norm(L + S - L_old - S_old) <= eps * np.linalg.norm(L_old + S_old):
-                print("convergence reached")
+            if np.linalg.norm(tmp - L_old - S_old) <= eps * np.linalg.norm(L_old + S_old):
+                print(f"convergence reached at step {itr}")
                 break
             M_old = M.copy()
             L_old = L.copy()

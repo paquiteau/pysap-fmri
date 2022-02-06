@@ -28,7 +28,7 @@ class BaseFMRIAcquisition:
     def load_pickle(cls, filename):
         """Load pickled file."""
         filepickle = open(filename, "rb")
-        return pickle.load(filepickle)
+        return np.ascontiguousarray(pickle.load(filepickle))
 
 
 class CartesianAcquisition(BaseFMRIAcquisition):

@@ -95,9 +95,9 @@ class SparklingAcquisition(BaseFMRIAcquisition):
         if len(_twix_obj.image.sqzSize) > 4:
             raise ValueError("Data import with averaging is not available.")
         if frame_slicer is not None:
-            self.kspace_data = _twix_obj.image[:, :, :, frame_slicer]
+            self.kspace_data = np.ascontiguousarray(_twix_obj.image[:, :, :, frame_slicer])
         else:
-            self.kspace_data = _twix_obj.image[""]
+            self.kspace_data = np.ascontiguouarray(_twix_obj.image[""])
         
         self.kspace_data = self.kspace_data.swapaxes(1, 2)
         self.kspace_data = self.kspace_data.swapaxes(0, 1)
