@@ -19,16 +19,25 @@ class SpaceFourier(OperatorBase):
         self.n_coils = n_coils
         self.n_frames = n_frames
         self.shape = np.array([self.n_frames, self.n_coils, *self.img_shape])
-
+        self.fourier_type = fourier_type
         if fourier_type == "FFT":
             self.spatial_op = FFT(shape, n_coils=n_coils,
                                   samples=samples, **kwargs)
         elif fourier_type == "gpuNUFFT":
             self.spatial_op = NonCartesianFFT(
-                samples, shape, n_coils=n_coils, implementation="gpuNUFFT", **kwargs)
+                samples,
+                shape,
+                n_coils=n_coils,
+                implementation="gpuNUFFT",
+                **kwargs)
+
         elif fourier_type == "NUFFT":
             self.spatial_op = NonCartesianFFT(
-                samples, shape, n_coils=n_coils, implementation="cpu", **kwargs)
+                samples,
+                shape,
+                n_coils=n_coils,
+                implementation="cpu",
+                **kwargs)
         else:
             raise NotImplementedError(
                 f"{fourier_type} is not a valid transform")

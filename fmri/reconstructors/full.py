@@ -6,9 +6,10 @@ from modopt.opt.algorithms import FastADMM, ForwardBackward
 from modopt.opt.gradient import GradBasic
 from modopt.opt.linear import Identity, LinearParent
 from modopt.opt.proximity import SparseThreshold
+from mri.operators.gradient.gradient import GradAnalysis, GradSynthesis
 
 from ..operators.fourier import TimeFourier
-from ..operators.svt import FlattenSVT, SingularValueThreshold
+from ..operators.svt import FlattenSVT
 from .base import BaseFMRIReconstructor
 
 
@@ -35,14 +36,16 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
                  fourier_op,
                  lowrank_thresh=1e-3,
                  sparse_thresh=1e-3,
-                 smaps=None):
+                 smaps=None,
+                 roi=None):
         super().__init__(
             fourier_op=fourier_op,
             space_linear_op=Identity(),
-            space_regularisation=SingularValueThreshold(
+            space_regularisation=FlattenSVT(
                 threshold=lowrank_thresh,
-                initial_rank=10,
+                initial_rank=5,
                 thresh_type="soft",
+                roi=roi,
             ),
             time_linear_op=TimeFourier(),
             time_regularisation=SparseThreshold(
@@ -51,6 +54,8 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
                 thresh_type="soft"),
             Smaps=smaps,
         )
+        self.sparse_thres = sparse_thresh
+        self.lowrank_thres = lowrank_thresh
 
     def reconstruct(self, kspace_data, max_iter=30, eps=1e-5):
         """Perform the reconstruction.
@@ -125,20 +130,22 @@ class ADMMReconstructor(BaseFMRIReconstructor):
                  fourier_op,
                  lowrank_thresh=1e-3,
                  sparse_thresh=1e-3,
+                 roi=None,
                  smaps=None):
         super().__init__(
             fourier_op=fourier_op,
             space_linear_op=Identity(),
             space_regularisation=FlattenSVT(
                 threshold=lowrank_thresh,
-                initial_rank=10,
-                thresh_type="soft",
+                initial_rank=5,
+                thresh_type="hard",
+                roi=roi,
             ),
             time_linear_op=TimeFourier(),
             time_regularisation=SparseThreshold(
                 Identity(),
                 sparse_thresh,
-                thresh_type="soft"),
+                thresh_type="hard"),
             Smaps=smaps,
         )
 
