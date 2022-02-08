@@ -12,13 +12,14 @@ class SpaceFourier(OperatorBase):
     """Spatial Fourier Transform on fMRI data."""
 
     def __init__(self, shape, n_coils, n_frames,
-                 samples, fourier_type="FFT", **kwargs) -> None:
+                 samples, fourier_type="FFT", class_grad=False, **kwargs) -> None:
         super().__init__()
         self.img_shape = shape
         self.n_samples = len(samples)
         self.n_coils = n_coils
         self.n_frames = n_frames
         self.shape = np.array([self.n_frames, self.n_coils, *self.img_shape])
+        self.class_grad = class_grad
         self.fourier_type = fourier_type
         if fourier_type == "FFT":
             self.spatial_op = FFT(shape, n_coils=n_coils,
@@ -75,7 +76,7 @@ class SpaceFourier(OperatorBase):
             gradient = np.zeros((self.n_frames, self.n_coils,
                                  *self.img_shape), dtype=x.dtype)
 
-        if self.fourier_type == "gpuNUFFT": # not stable yet
+        if not self.class_grad and self.fourier_type == "gpuNUFFT": # not stable yet
             for i_frame in range(self.n_frames):
                 gradient[i_frame] = self.spatial_op.impl.data_consistency(
                     x[i_frame], obs_data[i_frame])
@@ -90,7 +91,7 @@ class SpaceFourierMulti(OperatorBase):
     """Operator for Fourier Transform non constant Kspace traj samples."""
 
     def __init__(self, shape, n_coils, samples, n_jobs,
-                 fourier_type="FFT", **kwargs):
+                 fourier_type="FFT",  **kwargs):
         super().__init__()
         self.img_shape = shape
         self.n_samples = len(samples[0])
@@ -140,27 +141,46 @@ class SpaceFourierMulti(OperatorBase):
 class TimeFourier(OperatorBase):
     """Temporal Fourier Transform on fMRI data."""
 
-    def __init__(self):
+    def __init__(self, roi=None):
         super().__init__()
+        self.roi = roi
 
     def op(self, x):
         """Forward Operator method..
 
         Apply the fourier transform on the time axis, voxel wise
         """
-        return sp.fft.ifftshift(
-            sp.fft.fft(
-                sp.fft.fftshift(x, axes=0),
-                axis=0, norm="ortho"),
-            axes=0)
+        y = np.zeros_like(x)
+        if self.roi is not None:
+            y[:, self.roi] = sp.fft.ifftshift(
+                sp.fft.fft(
+                    sp.fft.fftshift(x[:, self.roi], axes=0),
+                    axis=0, norm="ortho"),
+                axes=0)
+        else:
+            y = sp.fft.ifftshift(
+                sp.fft.fft(
+                    sp.fft.fftshift(x, axes=0),
+                    axis=0, norm="ortho"),
+                axes=0)
+        return y
 
     def adj_op(self, x):
         """Adjoint Operator method.
 
         Apply the Inverse fourier transform on the time axis, voxel wise
         """
-        return sp.fft.fftshift(
-            sp.fft.ifft(
-                sp.fft.ifftshift(x, axes=0),
-                axis=0, norm="ortho"),
-            axes=0)
+        y = np.zeros_like(x)
+        if self.roi is not None:
+            y[:, self.roi] = sp.fft.fftshift(
+                sp.fft.ifft(
+                    sp.fft.ifftshift(x[:, self.roi], axes=0),
+                    axis=0, norm="ortho"),
+                axes=0)
+        else:
+            y = sp.fft.fftshift(
+                sp.fft.ifft(
+                    sp.fft.ifftshift(x, axes=0),
+                    axis=0, norm="ortho"),
+                axes=0)
+        return y

@@ -2,7 +2,7 @@
 """Base module to import and  load fMRI data."""
 
 import pickle
-
+import numpy as np
 
 class BaseFMRIAcquisition:
     """Base Acquisition class.
@@ -28,7 +28,7 @@ class BaseFMRIAcquisition:
     def load_pickle(cls, filename):
         """Load pickled file."""
         filepickle = open(filename, "rb")
-        return np.ascontiguousarray(pickle.load(filepickle))
+        return pickle.load(filepickle)
 
 
 class CartesianAcquisition(BaseFMRIAcquisition):
