@@ -41,6 +41,7 @@ def carrousel(
     pad=1,
     layout=None,
     normalized=False,
+        mode="portrait",
 ):
     """
     Display frames in a single plot.
@@ -56,19 +57,23 @@ def carrousel(
     to_show = fmri_img[frame_slicer, ...]
     n_plots = len(to_show)
     if layout is None and len(to_show) == 10:
-        n_row, n_cols = 2, 5
+        n_rows, n_cols = 2, 5
     elif layout is None:
         n_cols = np.ceil(np.sqrt(n_plots)).astype(np.int)
-        n_row = np.floor(np.sqrt(n_plots)).astype(np.int)
-        if n_cols*n_row < n_plots:
+        n_rows = np.floor(np.sqrt(n_plots)).astype(np.int)
+        if n_cols * n_rows < n_plots:
             n_cols += 1
     else:
-        n_row, n_cols = layout
-    vignette = np.empty((f_size + pad) * np.array((n_row, n_cols)) - pad)
+        n_rows, n_cols = layout
+
+    if mode == "portrait" and n_rows < n_cols:
+        n_rows, n_cols = n_cols, n_rows
+
+    vignette = np.empty((f_size + pad) * np.array((n_rows, n_cols)) - pad)
     if ax is None:
         fig, ax = plt.subplots()
     vignette[:] = np.NaN
-    for i in range(n_row):
+    for i in range(n_rows):
         for j in range(n_cols):
             if j + i * n_cols >= len(to_show):
                 break
