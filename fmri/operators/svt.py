@@ -35,18 +35,18 @@ class SingularValueThreshold(ProximityParent):
             The data with thresholded singular values.
         """
         OK = False
-        s = self.rank + 1
+        s = min(self.rank + 1, min(data.shape) - 2)
         u, s_val, v = sp.sparse.linalg.svds(data, k=1)
         # use a relative threshold/
         thresh = s_val[0] * self.threshold
         while not OK:
             # Sigma are the singular values, sorted in increasing order.
             U, Sigma, VT = sp.sparse.linalg.svds(data, k=s)
-            OK = Sigma[0] <= thresh or s == min(data.shape) - 1
-            s = min(s + self._incre, min(data.shape) - 1)
+            OK = Sigma[0] <= thresh or s == min(data.shape) - 2
+            s = min(s + self._incre, min(data.shape) - 2)
         Sigma = self.threshold_op.op(Sigma, extra_factor=s_val)
         self.rank = np.count_nonzero(Sigma)
-        return (U[:, -self.rank :] * Sigma[-self.rank :]) @ VT[-self.rank :, :]
+        return (U[:, -self.rank:] * Sigma[-self.rank:]) @ VT[-self.rank:, :]
 
 
 class FlattenSVT(SingularValueThreshold):
