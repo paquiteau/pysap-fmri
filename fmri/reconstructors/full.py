@@ -2,11 +2,9 @@
 
 import numpy as np
 import tqdm
-from modopt.opt.algorithms import FastADMM, ForwardBackward
-from modopt.opt.gradient import GradBasic
+from modopt.opt.algorithms import FastADMM
 from modopt.opt.linear import Identity, LinearParent
 from modopt.opt.proximity import SparseThreshold
-from mri.operators.gradient.gradient import GradAnalysis, GradSynthesis
 
 from ..operators.fourier import TimeFourier
 from ..operators.svt import FlattenSVT
@@ -36,7 +34,6 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
                  fourier_op,
                  lowrank_thresh=1e-3,
                  sparse_thresh=1e-3,
-                 smaps=None,
                  roi=None):
         super().__init__(
             fourier_op=fourier_op,
@@ -52,7 +49,6 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
                 Identity(),
                 sparse_thresh,
                 thresh_type="soft"),
-            Smaps=smaps,
         )
         self.sparse_thres = sparse_thresh
         self.lowrank_thres = lowrank_thresh
@@ -84,17 +80,11 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
         L = M.copy()
         S = M.copy()
         tmp = M.copy()
-        if self.smaps is None:
-            M_old = self.fourier_op.adj_op(kspace_data)
-        else:
-            M_old = np.sum(
-                np.conjugate(self.smaps) * self.fourier_op.adj_op(kspace_data),
-                axis=1)
-        S_old = S.copy()
+        M_old = self.fourier_op.adj_op(kspace_data)
 
         for itr in tqdm.tqdm(range(max_iter)):
             # singular value soft thresholding
-            tmp = M_old - S_old
+            tmp = M_old - S
             L = self.space_prox_op.op(tmp)
             # Soft thresholding in the time sparsifying domain
             S = self.time_linear_op.adj_op(
@@ -102,20 +92,11 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
             )
             # Data consistency: substract residual
             tmp = L + S
-            if self.smaps is None:
-                M = tmp - \
-                    self.fourier_op.data_consistency(tmp, kspace_data)
-            else:
-                M = tmp - np.sum(
-                    np.conjugate(self.smaps) * self.fourier_op.adj_op(
-                        self.fourier_op.op(
-                            tmp[:, np.newaxis, ...] * self.smaps) - kspace_data),
-                    axis=1)
+            M = tmp - self.fourier_op.data_consistency(tmp, kspace_data)
             if np.linalg.norm(M - M_old) <= eps * np.linalg.norm(M_old):
                 print(f"convergence reached at step {itr}")
                 break
             M_old = M.copy()
-            S_old = S.copy()
 
         return M, L, S
 
@@ -151,39 +132,6 @@ class ADMMReconstructor(BaseFMRIReconstructor):
             adj_op=lambda x: self.time_linear_op.op(self.fourier_op.adj_op(x)),
         )
 
-    # def _optimize_x(self, init_value, obs_value, max_iter=5, **kwargs):
-    #     grad = GradAnalysis(fourier_op=self.fourier_op, lipschitz_cst=1)
-    #     grad._obs_data = obs_value
-    #     opt = ForwardBackward(
-    #         init_value,
-    #         grad,
-    #         self.space_prox_op,
-    #         cost=None,
-    #         auto_iterate=False,
-    #         **kwargs)
-    #     opt.iterate(max_iter)
-
-    #     opt.retrieve_outputs()
-    #     return opt.x_final
-
-    # def _optimize_z(self, init_value, obs_value, max_iter=5, **kwargs):
-    #     grad = GradSynthesis(fourier_op=self.fourier_op,
-    #                          linear_op=self.time_linear_op,
-    #                          lipschitz_cst=1)
-    #     grad._obs_data = obs_value
-    #     opt = ForwardBackward(
-    #         init_value,
-    #         grad,
-    #         self.time_prox_op,
-    #         cost=None,
-    #         auto_iterate=False,
-    #         **kwargs)
-
-    #     opt.iterate(max_iter)
-    #     opt.retrieve_outputs()
-
-    #     return opt.x_final
-
     def _optimize_x(self, init_value, obs_value, max_iter=5, **kwargs):
         """Manually perform the FISTA Algorithm on x. Memory Efficient."""
         alpha = 1.
@@ -206,9 +154,9 @@ class ADMMReconstructor(BaseFMRIReconstructor):
         alpha_old = 1.
         x_old = init_value
         for i in range(max_iter):
-            x = x_old - self.step_B * self.time_linear_op.op(
+            x = x_old - self.step_B * self.time_linear_op.adj_op(
                 self.fourier_op.data_consistency(
-                    self.time_linear_op.adj_op(x_old),
+                    self.time_linear_op.op(x_old),
                     obs_value)
             )
             x = self.space_prox_op.op(x, extra_factor=self.step_B)

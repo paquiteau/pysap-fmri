@@ -44,7 +44,7 @@ class BaseFMRIReconstructor(object):
     """
 
     def __init__(self, fourier_op, space_linear_op, space_regularisation=None,
-                 time_linear_op=None, time_regularisation=None, Smaps=None, optimizer='pogm', verbose=0,):
+                 time_linear_op=None, time_regularisation=None, optimizer='pogm', verbose=0,):
         """
         Create base reconstructor.
 
@@ -71,12 +71,6 @@ class BaseFMRIReconstructor(object):
         self.time_linear_op = time_linear_op or Identity
         self.opt_name = optimizer
         self.grad_formulation = OPTIMIZERS[optimizer]
-
-        if Smaps is not None:
-            if fourier_op.n_coils > 1:
-                if Smaps.shape[0] != fourier_op.n_coils and Smaps.shape[1:] != fourier_op.shape:
-                    raise("Smaps shape is different from the image dimensions.")
-        self.smaps = Smaps
         self.verbose = verbose
 
         if space_regularisation is None:
@@ -98,8 +92,8 @@ class BaseFMRIReconstructor(object):
         raise NotImplementedError
 
     def initialize_opt(self, grad_op, x_init=None, synthesis_init=False,
-                     opt_kwargs=None, metric_kwargs=None):
+                       opt_kwargs=None, metric_kwargs=None):
         """Initialize an  optimizer for a given gradient """
         return initialize_opt(opt_name=self.opt_name, grad_op=grad_op,
-                         linear_op=self.space_linear_op,
-                         prox_op=self.space_prox_op)
+                              linear_op=self.space_linear_op,
+                              prox_op=self.space_prox_op)

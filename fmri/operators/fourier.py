@@ -89,11 +89,12 @@ class SpaceFourier(OperatorBase):
 
         return gradient
 
+
 class SpaceFourierMulti(OperatorBase):
     """Operator for Fourier Transform non constant Kspace traj samples."""
 
-    def __init__(self, shape, n_coils, samples, n_jobs,
-                 fourier_type="FFT",  **kwargs):
+    def __init__(self, shape, n_coils, samples, n_jobs, class_grad=False,
+                 fourier_type="FFT", **kwargs):
         super().__init__()
         self.img_shape = shape
         self.n_samples = len(samples[0])
@@ -113,6 +114,7 @@ class SpaceFourierMulti(OperatorBase):
                                                       n_coils=n_coils,
                                                       implementation="gpuNUFFT",
                                                       density_comp=density_array,
+                                                      **kwargs,
                                                       )
             self.use_sense = self.fourier_ops[0].impl.uses_sense
         else:
@@ -137,8 +139,26 @@ class SpaceFourierMulti(OperatorBase):
             x = np.zeros((self.n_frames, self.n_coils,
                          *self.img_shape), dtype=y.dtype)
         for i_frame in range(self.n_frames):
-            x[i_frame] = self.fourier_ops[i_frame].adj_op(y[i_frame, ...])
+            x[i_frame, ...] = self.fourier_ops[i_frame].adj_op(y[i_frame, ...])
         return np.asarray(x)
+
+    def data_consistency(self, x, obs_data):
+        """Compute data Consistency Operation.
+
+        Compute adj_op(op(x) - obs_data)
+        """
+        if self.use_sense:
+            gradient = np.zeros(
+                (self.n_frames, *self.img_shape), dtype=x.dtype)
+        else:
+            gradient = np.zeros((self.n_frames, self.n_coils,
+                                 *self.img_shape), dtype=x.dtype)
+
+        for i_frame in range(self.n_frames):
+            gradient[i_frame] = self.fourier_ops[i_frame].impl.data_consistency(
+                x[i_frame], obs_data[i_frame])
+
+        return gradient
 
 
 class TimeFourier(OperatorBase):
