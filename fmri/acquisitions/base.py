@@ -4,6 +4,7 @@
 import pickle
 import numpy as np
 
+
 class BaseFMRIAcquisition:
     """Base Acquisition class.
 
@@ -12,23 +13,12 @@ class BaseFMRIAcquisition:
 
     def __init__(self, kspace_data, kspace_loc):
         self.kspace_data = kspace_data
-        self.kspace_data = kspace_loc
+        self.kspace_loc = kspace_loc
 
     def save(self, filename):
         """Save data."""
         np.savez(filename, kspace_data=self.kspace_data,
                  kspace_loc=self.kspace_loc)
-
-    def save_pickle(self, filename):
-        """Save object."""
-        with open(filename, "wb") as f:
-            pickle.dump(self, f)
-
-    @classmethod
-    def load_pickle(cls, filename):
-        """Load pickled file."""
-        filepickle = open(filename, "rb")
-        return pickle.load(filepickle)
 
 
 class CartesianAcquisition(BaseFMRIAcquisition):
