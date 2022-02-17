@@ -43,6 +43,8 @@ class SpaceFourier(OperatorBase):
             raise NotImplementedError(
                 f"{fourier_type} is not a valid transform")
 
+        self.use_sense = getattr(self.spatial_op.impl, 'uses_sense', False)
+
     def op(self, x):
         """Forward Operator method."""
         # x is a n_frame x n_coils x shape array
@@ -55,7 +57,7 @@ class SpaceFourier(OperatorBase):
 
     def adj_op(self, y):
         """Adjoint Operator method."""
-        if getattr(self.spatial_op.impl, 'uses_sense', False):
+        if self.use_sense:
             x = np.zeros((self.n_frames, *self.img_shape), dtype=y.dtype)
         else:
             x = np.zeros((self.n_frames, self.n_coils,
@@ -69,14 +71,14 @@ class SpaceFourier(OperatorBase):
 
         Compute adj_op(op(x) - obs_data)
         """
-        if getattr(self.spatial_op.impl, 'uses_sense', False):
+        if self.use_sense:
             gradient = np.zeros(
                 (self.n_frames, *self.img_shape), dtype=x.dtype)
         else:
             gradient = np.zeros((self.n_frames, self.n_coils,
                                  *self.img_shape), dtype=x.dtype)
 
-        if not self.class_grad and self.fourier_type == "gpuNUFFT": # not stable yet
+        if not self.class_grad and self.fourier_type == "gpuNUFFT":  # not stable yet
             for i_frame in range(self.n_frames):
                 gradient[i_frame] = self.spatial_op.impl.data_consistency(
                     x[i_frame], obs_data[i_frame])
@@ -112,6 +114,7 @@ class SpaceFourierMulti(OperatorBase):
                                                       implementation="gpuNUFFT",
                                                       density_comp=density_array,
                                                       )
+            self.use_sense = self.fourier_ops[0].impl.uses_sense
         else:
             raise NotImplementedError(
                 f"{fourier_type} is not a valid transform")
@@ -128,7 +131,7 @@ class SpaceFourierMulti(OperatorBase):
 
     def adj_op(self, y):
         """Adjoint Operator method."""
-        if getattr(self.spatial_op.impl, 'uses_sense', False):
+        if self.use_sense:
             x = np.zeros((self.n_frames, *self.img_shape), dtype=y.dtype)
         else:
             x = np.zeros((self.n_frames, self.n_coils,
