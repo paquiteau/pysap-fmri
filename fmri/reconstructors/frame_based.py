@@ -17,7 +17,7 @@ from mri.operators.fourier.non_cartesian import gpuNUFFT
 
 from mri.reconstructors.utils.extract_sensitivity_maps import get_Smaps
 from .base import BaseFMRIReconstructor
-from .utils import initialize_opt
+from .utils import initialize_opt, OPTIMIZERS
 
 
 class SequentialFMRIReconstructor(BaseFMRIReconstructor):
@@ -25,32 +25,28 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
 
     Time frame are reconstructed in a row, the previous frame estimation
     is used as initialization for the next one.
+
+    See Also
+    --------
+    BaseFMRIReconstructor: parent class
     """
 
-    def get_grad_op(self, **kwargs):
+    def __init__(self, *args, optimizer="pogm", **kwargs):
+        super().__init__(*args, **kwargs)
+        self.opt_name = optimizer
+        self.grad_formulation = OPTIMIZERS[optimizer]
+
+    def get_grad_op(self, fourier_op, **kwargs):
         """Create gradient operator specific to the problem."""
         if self.grad_formulation == 'analysis':
-            if self.smaps is None:
-                return GradAnalysis(fourier_op=self.fourier_op,
-                                    verbose=self.verbose,
-                                    **kwargs)
-            else:
-                return GradSelfCalibrationAnalysis(fourier_op=self.fourier_op,
-                                                   Smaps=self.smaps,
-                                                   verbose=self.verbose,
-                                                   **kwargs)
+            return GradAnalysis(fourier_op=fourier_op,
+                                verbose=self.verbose,
+                                **kwargs)
         elif self.grad_formulation == 'synthesis':
-            if self.smaps is None:
-                return GradSynthesis(linear_op=self.space_linear_op,
-                                     fourier_op=self.fourier_op,
-                                     verbose=self.verbose,
-                                     **kwargs)
-            else:
-                return GradSelfCalibrationSynthesis(fourier_op=self.fourier_op,
-                                                    linear_op=self.space_linear_op,
-                                                    Smaps=self.smaps,
-                                                    verbose=self.verbose,
-                                                    **kwargs)
+            return GradSynthesis(linear_op=self.space_linear_op,
+                                 fourier_op=fourier_op,
+                                 verbose=self.verbose,
+                                 **kwargs)
         else:
             raise ValueError("Unknown Gradient formuation")
 
@@ -59,60 +55,34 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
                     smaps_kwargs=None, warm_x=True):
         """Reconstruct using sequential method."""
         grad_kwargs = dict() if grad_kwargs is None else grad_kwargs
-        grad_op = self.get_grad_op(**grad_kwargs)
-
-        if getattr(self.fourier_op.impl, 'uses_sense', False) or self.smaps is not None:
-            if x_init is None:
-                x_init = np.squeeze(
-                    np.zeros(self.fourier_op.shape, dtype="complex64"))
-            final_estimate = np.zeros(
-                (len(kspace_data), *self.fourier_op.shape), dtype=x_init.dtype)
-        else:
-            if x_init is None:
-                x_init = np.squeeze(
-                    np.zeros((self.fourier_op.n_coils, *self.fourier_op.shape),
-                             dtype="complex64"))
-            final_estimate = np.zeros((len(kspace_data),
-                                       self.fourier_op.n_coils,
-                                       *self.fourier_op.shape),
-                                      dtype=x_init.dtype)
+        if x_init is None:
+            x_init = np.zeros(self.fourier_op.fourier_ops[0].shape,
+                              dtype="complex64")
+        final_estimate = np.zeros(
+            (len(kspace_data), *self.fourier_op.fourier_ops[0].shape),
+            dtype=x_init.dtype)
 
         if self.fourier_op.n_coils != kspace_data.shape[1]:
-            raise ValueError("The kspace data should have shape N_frame x N_coils x N_samples. "
-                             "Also, the provided number of coils should match.")
+            raise ValueError("The kspace data should have shape"
+                             "N_frame x N_coils x N_samples. "
+                             "Also, the number of coils should match.")
         if smaps_kwargs is None and recompute_smaps:
             smaps_kwargs = dict()
 
-        opt = initialize_opt(opt_name=self.opt_name,
-                             grad_op=grad_op,
-                             linear_op=self.space_linear_op,
-                             prox_op=self.space_prox_op,
-                             x_init=x_init,
-                             synthesis_init=False,
-                             opt_kwargs={"cost": None},
-                             metric_kwargs=dict())
         next_init = x_init
-        totalPB = progressbar.ProgressBar(max_val=len(kspace_data))
-        totalPB.start()
+
+        if self.fourier_op.is_repeating:
+            grad_op = self.get_grad_op(
+                self.fourier_op.fourier_ops[0],
+                **grad_kwargs)
         for i in range(len(kspace_data)):
+            if not self.fourier_op.is_repeating:
+                grad_op = self.get_grad_op(
+                    self.fourier_op.fourier_ops[i],
+                    **grad_kwargs)
             # at each step a new frame is loaded
             grad_op._obs_data = kspace_data[i, ...]
             # reset Smaps and optimizer if required.
-            if (recompute_smaps and
-                    (self.smaps is not None or getattr(self.fourier_op.impl, 'use_sense', False))):
-                Smaps, _ = get_Smaps(kspace_data[i, ...],
-                                     img_shape=self.fourier_op.shape,
-                                     samples=self.fourier_op.samples,
-                                     min_samples=self.fourier_op.samples.min(
-                                         axis=0),
-                                     max_samples=self.fourier_op.samples.max(
-                                         axis=0),
-                                     density_comp=self.fourier_op.density_comp,
-                                     **smaps_kwargs)
-                if getattr(self.fourier_op.impl, 'uses_sense', False):
-                    grad_op.fourier_op.impl.operator.set_smaps(Smaps)
-                else:
-                    grad_op.Smaps = Smaps
 
             if reset_opt:
                 opt = initialize_opt(opt_name=self.opt_name,
@@ -140,8 +110,6 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
                 next_init = opt.x_final if warm_x else x_init
             # Progressbar update
             clear_output(wait=True)
-            totalPB.update(i)
-        totalPB.finish()
         return final_estimate
 
 
@@ -152,7 +120,12 @@ class ParallelFMRIReconstructor(SequentialFMRIReconstructor):
     Time frame are reconstructed independently, and in parallel to speed up the reconstruction
     """
 
-    def reconstruct(self, kspace_data, x_init=None, max_iter_per_frame=30, n_jobs=3, smaps_kwargs=None):
+    def reconstruct(self,
+                    kspace_data,
+                    x_init=None,
+                    max_iter_per_frame=30,
+                    n_jobs=3,
+                    smaps_kwargs=None):
         """Reconstruct using Parallel method."""
         def oneframe(kspace_data, idx, x_init, fourier_kwargs, grad_kwargs,
                      smaps_kwargs, linear_op, prox_op, opt_name):

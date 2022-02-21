@@ -12,6 +12,7 @@ from sparkling.utils.gradient import get_kspace_loc_from_gradfile
 
 from .utils import add_phase_kspace
 from ..utils import MAX_CPU_CORE
+from ..operators.fourier import SpaceFourierMulti
 
 
 class BaseSparklingAcquisition:
@@ -138,6 +139,7 @@ class BaseSparklingAcquisition:
         s = self.kspace_data.shape
         self.kspace_data = self.kspace_data.reshape(*s[:2], np.prod(s[2:]))
         self.n_coils = int(_twix_obj.hdr["Meas"]["NChaMeas"])
+        self.n_frames = len(self.kspace_data)
 
     def _load_kspace_loc(self, normalize=True, bin_load_kwargs=None):
         """Load k-space trajectory from .bin file."""
@@ -168,6 +170,16 @@ class BaseSparklingAcquisition:
                 self.kspace_loc,
                 Kmax=self.img_shape / (2 * self.FOV)
             )
+
+    def get_fourier_operator(self, **kwargs):
+        print(self.img_shape, self.n_coils, self.kspace_data.shape)
+        return SpaceFourierMulti(
+            self.img_shape,
+            self.n_coils,
+            samples=self.kspace_data,
+            n_frames=self.n_frames,
+            **kwargs,
+        )
 
 
 class SparklingAcquisition(BaseSparklingAcquisition):
@@ -235,17 +247,6 @@ class SparklingAcquisition(BaseSparklingAcquisition):
         """
         return estimate_density_compensation(self.kspace_loc, self.img_shape)
 
-    def get_fourier_operator(self, implementation="gpuNUFFT", **kwargs):
-        """Get the fourier operator associated to sampling pattern."""
-        return NonCartesianFFT(
-            samples=self.kspace_loc,
-            shape=self.img_shape,
-            n_coils=self.n_coils,
-            implementation=implementation,
-            density_comp=self.density_comp if implementation == "gpuNUFFT" else None,
-            **kwargs,
-        )
-
     def save(self, filename):
         """Save the kspace_data and sampling pattern."""
         np.savez(filename, kspace_data=self.kspace_data,
@@ -292,7 +293,6 @@ class CompressedAcquisition(BaseSparklingAcquisition):
         self.kspace_loc = self.kspace_loc[n_shot_per_frame * frame_slicer[0]:
                                           n_shot_per_frame * frame_slicer[1],
                                           ...]
-        self.n_frames = len(self.kspace_data)
 
         self.kspace_loc = self.kspace_loc.reshape(
             np.prod(self.kspace_loc.shape[:2]),
@@ -328,6 +328,3 @@ class CompressedAcquisition(BaseSparklingAcquisition):
             f"Oversampling={self.OSF}\n"
             f")"
         )
-
-    def get_fourier_op(smaps, implementation="gpuNUFFT"):
-        pass

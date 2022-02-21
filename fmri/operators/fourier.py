@@ -93,29 +93,58 @@ class SpaceFourier(OperatorBase):
 class SpaceFourierMulti(OperatorBase):
     """Operator for Fourier Transform non constant Kspace traj samples."""
 
-    def __init__(self, shape, n_coils, samples, n_jobs, class_grad=False,
-                 fourier_type="FFT", **kwargs):
+    def __init__(self,
+                 shape,
+                 n_coils,
+                 samples,
+                 n_jobs=1,
+                 class_grad=False,
+                 n_frames=-1,
+                 fourier_type="gpuNUFFT",
+                 **kwargs):
         super().__init__()
         self.img_shape = shape
+        # is only a trajectory is provided, it will be repeated.
+        self.is_repeating = False
+        if samples.ndim == 2 and not n_frames != -1:
+            samples = [samples] * n_frames
+            self.n_frames = n_frames
+            self.is_repeating = True
+        else:
+            self.n_frames = len(samples)
         self.n_samples = len(samples[0])
-        self.n_frames = len(samples)
         self.n_coils = n_coils
         self.n_jobs = n_jobs
         self.shape = np.array([self.n_frames, self.n_coils, *self.img_shape])
 
         if fourier_type == "gpuNUFFT":
-            # instanciate all fourier operator with different trajectories.
-            self.fourier_ops = [None] * self.n_frames
-            for i in range(self.n_frames):
+            if self.is_repeating:
                 density_array = estimate_density_compensation_gpu(
-                    samples[i], shape)
-                self.fourier_ops[i] = NonCartesianFFT(samples[i],
-                                                      shape,
-                                                      n_coils=n_coils,
-                                                      implementation="gpuNUFFT",
-                                                      density_comp=density_array,
-                                                      **kwargs,
-                                                      )
+                    samples, shape)
+                f = NonCartesianFFT(
+                    samples,
+                    shape,
+                    n_coils=n_coils,
+                    implementation="gpuNUFFT",
+                    density_comp=density_array,
+                    **kwargs)
+
+                self.fourier_ops = [f] * self.n_frames
+
+            else:
+                # instanciate all fourier operator with different trajectories.
+                self.fourier_ops = [None] * self.n_frames
+                for i in range(self.n_frames):
+                    density_array = estimate_density_compensation_gpu(
+                        samples[i], shape)
+                    self.fourier_ops[i] = NonCartesianFFT(
+                        samples[i],
+                        shape,
+                        n_coils=n_coils,
+                        implementation="gpuNUFFT",
+                        density_comp=density_array,
+                        **kwargs,
+                    )
             self.use_sense = self.fourier_ops[0].impl.uses_sense
         else:
             raise NotImplementedError(

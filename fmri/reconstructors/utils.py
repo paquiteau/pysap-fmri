@@ -11,6 +11,11 @@ import numpy as np
 from modopt.opt.algorithms import POGM, ForwardBackward
 
 
+OPTIMIZERS = {'pogm': 'synthesis',
+              'fista':  'analysis',
+              None: None}
+
+
 def initialize_opt(opt_name, grad_op, linear_op, prox_op,
                    x_init=None, synthesis_init=False, opt_kwargs=None, metric_kwargs=None):
     """

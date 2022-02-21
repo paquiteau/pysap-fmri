@@ -13,11 +13,6 @@ from modopt.opt.linear import Identity
 from .utils import initialize_opt
 
 
-OPTIMIZERS = {'pogm': 'synthesis',
-              'fista':  'analysis',
-              None: None}
-
-
 class BaseFMRIReconstructor(object):
     """This class hold common attributes and methods for fMRI reconstruction.
 
@@ -44,7 +39,7 @@ class BaseFMRIReconstructor(object):
     """
 
     def __init__(self, fourier_op, space_linear_op, space_regularisation=None,
-                 time_linear_op=None, time_regularisation=None, optimizer='pogm', verbose=0,):
+                 time_linear_op=None, time_regularisation=None, verbose=0,):
         """
         Create base reconstructor.
 
@@ -69,8 +64,6 @@ class BaseFMRIReconstructor(object):
         self.fourier_op = fourier_op
         self.space_linear_op = space_linear_op or Identity
         self.time_linear_op = time_linear_op or Identity
-        self.opt_name = optimizer
-        self.grad_formulation = OPTIMIZERS[optimizer]
         self.verbose = verbose
 
         if space_regularisation is None:
@@ -86,6 +79,7 @@ class BaseFMRIReconstructor(object):
             self.time_prox_op = Identity()
         else:
             self.time_prox_op = time_regularisation
+        print("end init", self.fourier_op)
 
     def reconstruct(self, kspace_data, *args, **kwargs):
         """Lauchn reconstruction."""
