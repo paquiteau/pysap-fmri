@@ -12,7 +12,7 @@ from modopt.opt.algorithms import POGM, ForwardBackward
 
 
 OPTIMIZERS = {'pogm': 'synthesis',
-              'fista':  'analysis',
+              'fista': 'analysis',
               None: None}
 
 
