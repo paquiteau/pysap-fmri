@@ -1,196 +1,98 @@
 """Fourier Operator for fMRI data."""
-import joblib
 import numpy as np
 import scipy as sp
-from mri.operators.base import OperatorBase
-from mri.operators.fourier.cartesian import FFT
 from mri.operators.fourier.non_cartesian import NonCartesianFFT
-from mri.operators.fourier.utils import estimate_density_compensation_gpu
+from mri.operators.fourier.utils import estimate_density_compensation_gpu, estimate_density_compensation
+import copy
 
 
-class SpaceFourier(OperatorBase):
-    """Spatial Fourier Transform on fMRI data."""
+class SpaceFourier:
+    """Spatial Fourier Transform on fMRI data.
 
-    def __init__(self, shape, n_coils, n_frames,
-                 samples, fourier_type="FFT", class_grad=False, **kwargs) -> None:
-        super().__init__()
-        self.img_shape = shape
-        self.n_samples = len(samples)
-        self.n_coils = n_coils
+    Parameters
+    ----------
+    samples: np.ndarray
+        2D or 3D array of samples coordinates for non cartesian fourier
+    n_frames: int
+        Number of frames for the reconstruction
+    n_coils: int
+        Number of coils for pMRI, default 1.
+    smaps: np.ndarray
+        Sensitivity Maps, shared across time.
+    estimate_density: 'gpu' | 'cpu'
+        Method to estimate the density compensation.
+
+    Attributes
+    ----------
+    fourier_ops: list
+        List of NonCartesianFFT Operator
+    """
+    def __init__(self, samples, shape, n_coils=1, n_frames=None, estimate_density="gpu", smaps=None,  **kwargs):
         self.n_frames = n_frames
-        self.shape = np.array([self.n_frames, self.n_coils, *self.img_shape])
-        self.class_grad = class_grad
-        self.fourier_type = fourier_type
-        if fourier_type == "FFT":
-            self.spatial_op = FFT(shape, n_coils=n_coils,
-                                  samples=samples, **kwargs)
-        elif fourier_type == "gpuNUFFT":
-            self.spatial_op = NonCartesianFFT(
-                samples,
-                shape,
-                n_coils=n_coils,
-                implementation="gpuNUFFT",
-                **kwargs)
-
-        elif fourier_type == "NUFFT":
-            self.spatial_op = NonCartesianFFT(
-                samples,
-                shape,
-                n_coils=n_coils,
-                implementation="cpu",
-                **kwargs)
-        else:
-            raise NotImplementedError(
-                f"{fourier_type} is not a valid transform")
-
-        self.use_sense = getattr(self.spatial_op.impl, 'uses_sense', False)
-
-    def op(self, x):
-        """Forward Operator method."""
-        # x is a n_frame x n_coils x shape array
-        y = np.zeros((self.n_frames, self.n_coils,
-                     self.n_samples), dtype=x.dtype)
-
-        for i_frame in range(x.shape[0]):
-            y[i_frame, ...] = self.spatial_op.op(x[i_frame, ...])
-        return y
-
-    def adj_op(self, y):
-        """Adjoint Operator method."""
-        if self.use_sense:
-            x = np.zeros((self.n_frames, *self.img_shape), dtype=y.dtype)
-        else:
-            x = np.zeros((self.n_frames, self.n_coils,
-                         *self.img_shape), dtype=y.dtype)
-        for i_frame in range(self.n_frames):
-            x[i_frame] = self.spatial_op.adj_op(y[i_frame, ...])
-        return x
-
-    def data_consistency(self, x, obs_data):
-        """Compute data Consistency Operation.
-
-        Compute adj_op(op(x) - obs_data)
-        """
-        if self.use_sense:
-            gradient = np.zeros(
-                (self.n_frames, *self.img_shape), dtype=x.dtype)
-        else:
-            gradient = np.zeros((self.n_frames, self.n_coils,
-                                 *self.img_shape), dtype=x.dtype)
-
-        if not self.class_grad and self.fourier_type == "gpuNUFFT":  # not stable yet
-            for i_frame in range(self.n_frames):
-                gradient[i_frame] = self.spatial_op.impl.data_consistency(
-                    x[i_frame], obs_data[i_frame])
-        else:
-            for i_frame in range(self.n_frames):
-                gradient[i_frame] = self.spatial_op.adj_op(
-                    self.spatial_op.op(x[i_frame]) - obs_data[i_frame])
-
-        return gradient
-
-
-class SpaceFourierMulti(OperatorBase):
-    """Operator for Fourier Transform non constant Kspace traj samples."""
-
-    def __init__(self,
-                 shape,
-                 n_coils,
-                 samples,
-                 n_jobs=1,
-                 class_grad=False,
-                 n_frames=-1,
-                 fourier_type="gpuNUFFT",
-                 **kwargs):
-        super().__init__()
-        self.img_shape = shape
-        # is only a trajectory is provided, it will be repeated.
-        self.is_repeating = False
-        if samples.ndim == 2 and not n_frames != -1:
-            samples = [samples] * n_frames
-            self.n_frames = n_frames
-            self.is_repeating = True
-        else:
-            self.n_frames = len(samples)
-        self.n_samples = len(samples[0])
         self.n_coils = n_coils
-        self.n_jobs = n_jobs
-        self.shape = np.array([self.n_frames, self.n_coils, *self.img_shape])
+        self.smaps = smaps
+        self.shape = shape
 
-        if fourier_type == "gpuNUFFT":
-            if self.is_repeating:
-                density_array = estimate_density_compensation_gpu(
-                    samples, shape)
-                f = NonCartesianFFT(
-                    samples,
-                    shape,
-                    n_coils=n_coils,
-                    implementation="gpuNUFFT",
-                    density_comp=density_array,
-                    **kwargs)
-
-                self.fourier_ops = [f] * self.n_frames
-
-            else:
-                # instanciate all fourier operator with different trajectories.
-                self.fourier_ops = [None] * self.n_frames
-                for i in range(self.n_frames):
-                    density_array = estimate_density_compensation_gpu(
-                        samples[i], shape)
-                    self.fourier_ops[i] = NonCartesianFFT(
-                        samples[i],
-                        shape,
-                        n_coils=n_coils,
-                        implementation="gpuNUFFT",
-                        density_comp=density_array,
-                        **kwargs,
-                    )
-            self.use_sense = self.fourier_ops[0].impl.uses_sense
+        if samples.ndim == 2 and n_frames is None:
+            raise ValueError("2D array of samples provided, but n_frames is not specified.")
+        if samples.ndim == 2:
+            self.samples = np.repeat(samples[None, ...], n_frames, axis=0)
+        elif samples.ndim == 3:
+            self.samples = samples
         else:
-            raise NotImplementedError(
-                f"{fourier_type} is not a valid transform")
+            raise ValueError("samples array should be 2D or 3D.")
 
-    def op(self, x):
+        if estimate_density == "gpu":
+            edc = estimate_density_compensation_gpu
+        elif estimate_density == "cpu":
+            edc = estimate_density_compensation
+        else:
+            raise ValueError("'estimate_density' should be 'gpu' or 'cpu'. ")
+
+        self.samples = np.require(self.samples, requirements=['OWNDATA','ENSUREARRAY'])
+
+        # print(self.samples.flags)
+        # print(self.samples.data)
+        # print(self.samples.shape)
+        # print(self.samples.strides)
+        # Create fourier operator for each frame
+        self.fourier_ops = []
+        for i in range(n_frames):
+            self.fourier_ops.append(NonCartesianFFT(self.samples[i],
+                                                    shape,
+                                                    n_coils=n_coils,
+                                                    density_comp=edc(self.samples[i], shape),
+                                                    implementation="gpuNUFFT",
+                                                    smaps=smaps,
+                                                    **kwargs,
+                                                    ))
+
+    def op(self, data):
         """Forward Operator method."""
-        # x is a n_frame x n_coils x shape array
-        y = np.zeros((self.n_frames, self.n_coils,
-                     self.n_samples), dtype=x.dtype)
 
-        for i_frame in range(x.shape[0]):
-            y[i_frame, ...] = self.fourier_ops[i_frame].op(x[i_frame, ...])
-        return y
+        adj_data = np.squeeze(np.zeros((self.n_frames, self.n_coils, *self.shape),dtype='complex64'))
+        for i in range(self.n_frames):
+            adj_data[i] = self.fourier_ops[i].op(data[i])
+        return adj_data
 
-    def adj_op(self, y):
+    def adj_op(self, adj_data):
         """Adjoint Operator method."""
-        if self.use_sense:
-            x = np.zeros((self.n_frames, *self.img_shape), dtype=y.dtype)
+
+        # print(adj_data[0].flags)
+        # print(adj_data[0].data)
+        # print(adj_data[0].shape)
+        # print(adj_data[0].strides)
+        if self.smaps is None:
+            data  = np.squeeze(np.zeros((self.n_frames, self.n_coils, *self.shape),dtype=adj_data.dtype))
         else:
-            x = np.zeros((self.n_frames, self.n_coils,
-                         *self.img_shape), dtype=y.dtype)
-        for i_frame in range(self.n_frames):
-            x[i_frame, ...] = self.fourier_ops[i_frame].adj_op(y[i_frame, ...])
-        return np.asarray(x)
 
-    def data_consistency(self, x, obs_data):
-        """Compute data Consistency Operation.
+            data  = np.squeeze(np.zeros((self.n_frames, *self.shape),dtype=adj_data.dtype))
 
-        Compute adj_op(op(x) - obs_data)
-        """
-        if self.use_sense:
-            gradient = np.zeros(
-                (self.n_frames, *self.img_shape), dtype=x.dtype)
-        else:
-            gradient = np.zeros((self.n_frames, self.n_coils,
-                                 *self.img_shape), dtype=x.dtype)
+        for i in range(self.n_frames):
+            data[i] = self.fourier_ops[i].adj_op(adj_data[i])
+        return data
 
-        for i_frame in range(self.n_frames):
-            gradient[i_frame] = self.fourier_ops[i_frame].impl.data_consistency(
-                x[i_frame], obs_data[i_frame])
-
-        return gradient
-
-
-class TimeFourier(OperatorBase):
+class TimeFourier:
     """Temporal Fourier Transform on fMRI data."""
 
     def __init__(self, roi=None):
