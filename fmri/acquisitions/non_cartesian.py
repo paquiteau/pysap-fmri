@@ -1,21 +1,20 @@
+"""Facilitate import of raw fMRI data."""
 import functools
 import os
 import warnings
 import pickle
 import numpy as np
 from mapvbvd import mapVBVD
-from mri.operators.fourier.non_cartesian import NonCartesianFFT
 from mri.operators.fourier.utils import estimate_density_compensation
 from mri.operators.utils import normalize_frequency_locations
 from mri.reconstructors.utils.extract_sensitivity_maps import get_Smaps
 from sparkling.utils.gradient import get_kspace_loc_from_gradfile
 
-from .utils import add_phase_kspace
 from ..utils import MAX_CPU_CORE
-from ..operators.fourier import SpaceFourierMulti
+from ..operators.fourier import SpaceFourier
 
 
-class BaseSparklingAcquisition:
+class BaseAcquisition:
     """
     Acquisition class for Non Cartesian Acquisition, repeated in time.
 
@@ -37,6 +36,8 @@ class BaseSparklingAcquisition:
         Time frame selector, to only import a subset of slices.
     load_data: bool (optional, default True)
         Flag to load data.
+    n_shot_per_frame: int, default -1
+        The number of shot to associate to each temporal frame.
     normalize: bool (optional, default True)
         Flag to normalize the kspace frequencies between -0.5 and 0.5
     bin_load_kwargs: dict (optional, default None)
@@ -85,17 +86,26 @@ class BaseSparklingAcquisition:
 
     def save_pickle(self, filename):
         """Save object."""
-        with open(filename, "wb") as f:
-            pickle.dump(self, f)
+        with open(filename, "wb") as filepickle:
+            pickle.dump(self, filepickle)
 
     @classmethod
     def load_pickle(cls, filename):
         """Load pickled file."""
-        filepickle = open(filename, "rb")
-        return pickle.load(filepickle)
+        with open(filename, "rb") as filepickle:
+            return pickle.load(filepickle)
 
     def _load_kspace_data(self, frame_slicer, n_shot_per_frame=-1):
-        """Load data from .dat file."""
+        """Load data from .dat file.
+
+        Parameters
+        ----------
+        frame_slicer: tuple
+            A 2-tuple for the start and end frame to extract from the data.
+        n_shot_per_frame: int, default=-1
+            Number of shot to attribute to each frame.
+            If `-1` assumed a repeated trajectory.
+        """
         _twix_obj = mapVBVD(self._data_file)
         traj_name = _twix_obj.hdr["Meas"]["tFree"]
         if self._traj_file is None:
@@ -114,18 +124,21 @@ class BaseSparklingAcquisition:
             raise ValueError(
                 "Data import with averaging is not available.")
 
+        # only relevant frames are loaded from the raw data
         if frame_slicer is not None:
             if n_shot_per_frame == -1:
-                m = np.s_[:, :, :, frame_slicer[0]:frame_slicer[1]]
+                slicer = np.s_[:, :, :, frame_slicer[0]:frame_slicer[1]]
             else:
-                m = np.s_[:,
-                          :,
-                          n_shot_per_frame * frame_slicer[0]:
-                          n_shot_per_frame * frame_slicer[1]
-                          ]
+                slicer = np.s_[:,
+                               :,
+                               n_shot_per_frame * frame_slicer[0]:
+                               n_shot_per_frame * frame_slicer[1]
+                               ]
         else:
-            m = ""
-        self.kspace_data = np.ascontiguousarray((_twix_obj.image[m]).T)
+            slicer = ""
+        self.kspace_data = np.ascontiguousarray((_twix_obj.image[slicer]).T,
+                                                dtype="complex64")
+        # If only one frame is acquired reshape accordingly.
         # add the frame dimension manually.
         if n_shot_per_frame != -1:
             self.kspace_data = np.reshape(
@@ -136,8 +149,15 @@ class BaseSparklingAcquisition:
             )
 
         self.kspace_data = self.kspace_data.swapaxes(1, 2)
-        s = self.kspace_data.shape
-        self.kspace_data = self.kspace_data.reshape(*s[:2], np.prod(s[2:]))
+        shape = self.kspace_data.shape
+        self.kspace_data = self.kspace_data.reshape(*shape[:2],
+                                                    np.prod(shape[2:]))
+        if frame_slicer[1] - frame_slicer[0] == 1:
+            self.kspace_data = np.reshape(
+                self.kspace_data,
+                (1, (self.kspace_data.shape[0] * self.kspace_data.shape[1]),
+                 *self.kspace_data.shape[2:])
+            )
         self.n_coils = int(_twix_obj.hdr["Meas"]["NChaMeas"])
         self.n_frames = len(self.kspace_data)
 
@@ -151,8 +171,9 @@ class BaseSparklingAcquisition:
             self.kspace_loc, _ = get_kspace_loc_from_gradfile(
                 self._traj_file,
                 dwell_time=0.01 / float(infos["min_osf"]),
-                num_adc_samples=infos["num_samples_per_shot"] *
-                infos["min_osf"],
+                num_adc_samples=(
+                    infos["num_samples_per_shot"] * infos["min_osf"]
+                ),
             )
         else:
             self.kspace_loc, infos = get_kspace_loc_from_gradfile(
@@ -160,7 +181,7 @@ class BaseSparklingAcquisition:
             )
 
         self.n_shots = infos["num_shots"]
-        self.n_samples = infos["num_samples_per_shot"]
+        self.n_samples_shot = infos["num_samples_per_shot"]
         self.FOV = np.asarray(infos["FOV"])
         self.DIM = infos["dimension"]
         self.img_shape = infos["img_size"]
@@ -170,37 +191,40 @@ class BaseSparklingAcquisition:
                 self.kspace_loc,
                 Kmax=self.img_shape / (2 * self.FOV)
             )
+        self.kspace_loc = np.float32(self.kspace_loc)
+        self.kspace_loc = self.kspace_loc.reshape(
+            (np.prod(self.kspace_loc.shape[:2]), self.kspace_loc.shape[2]))
 
     def get_fourier_operator(self, **kwargs):
-        print(self.img_shape, self.n_coils, self.kspace_data.shape)
-        return SpaceFourierMulti(
-            self.img_shape,
-            self.n_coils,
-            samples=self.kspace_data,
+        """Return the fourier operator associated with this acquisition."""
+        return SpaceFourier(
+            samples=self.kspace_loc,
+            shape=self.img_shape,
             n_frames=self.n_frames,
+            n_coils=self.n_coils,
             **kwargs,
         )
 
 
-class SparklingAcquisition(BaseSparklingAcquisition):
-    """Sparkling fMRI reconstruction using a repeating sampling pattern."""
+class RepeatedAcquisition(BaseAcquisition):
+    """fMRI reconstruction using a repeating sampling pattern."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.n_frames = len(self.kspace_data)
-        self.kspace_loc = self.kspace_loc.reshape(
-            (np.prod(self.kspace_loc.shape[:2]), self.kspace_loc.shape[2]))
-
-        print(self.kspace_data.shape)
-        print(self.kspace_loc.shape)
 
         if len(self.shifts) != self.kspace_loc.shape[-1]:
             raise ValueError("Dimension mismatch")
+
         phi = np.zeros((self.kspace_loc.shape[0]))
         for i in range(self.kspace_loc.shape[-1]):
-            phi += self.kspace_loc[0, ..., i] * self.shifts[i]
-        self.kspace_data *= np.exp(-2 * np.pi * 1j * phi)
+            phi += self.kspace_loc[..., i] * self.shifts[i]
+        phi = np.exp(-2 * np.pi * 1j * phi, dtype="complex64")
+        if self.n_frames == 1:
+            self.kspace_data = self.kspace_data * phi[np.newaxis, :, np.newaxis]
+        else:
+            self.kspace_data = self.kspace_data * phi
+
 
     def get_smaps(
         self,
@@ -234,7 +258,7 @@ class SparklingAcquisition(BaseSparklingAcquisition):
             fourier_op_kwargs=kwargs,
         )
         if ssos:
-            return smaps, ssos
+            return smaps, sos
         return smaps
 
     @property
@@ -258,10 +282,11 @@ class SparklingAcquisition(BaseSparklingAcquisition):
             pickle.dump(self, f, protocol=4)
 
     def __repr__(self):
+        """Display the main characteristic of the acquisition."""
         return (
             "SparklingAcquisition(\n"
             f"shots={self.n_shots}\n"
-            f"samples/shots={self.n_samples}\n"
+            f"samples/shots={self.n_samples_shot}\n"
             f"coils={self.n_coils}\n"
             f"timeframes={self.n_frames}\n"
             f"img_dim={self.DIM}\n"
@@ -272,7 +297,7 @@ class SparklingAcquisition(BaseSparklingAcquisition):
         )
 
 
-class CompressedAcquisition(BaseSparklingAcquisition):
+class CompressedAcquisition(BaseAcquisition):
     """
     Acquisition class for compressed acquisition both in space and time.
 
@@ -287,39 +312,29 @@ class CompressedAcquisition(BaseSparklingAcquisition):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        n_shot_per_frame = kwargs['n_shot_per_frame']
-        frame_slicer = np.asarray(kwargs['frame_slicer'])
+        self.n_shot_frame = kwargs['n_shot_per_frame']
+        fr_slice = kwargs['frame_slicer']
         # also extract the frame slice for the locations.
-        self.kspace_loc = self.kspace_loc[n_shot_per_frame * frame_slicer[0]:
-                                          n_shot_per_frame * frame_slicer[1],
-                                          ...]
-
-        self.kspace_loc = self.kspace_loc.reshape(
-            np.prod(self.kspace_loc.shape[:2]),
-            *self.kspace_loc.shape[2:])
-
-        self.kspace_loc = self.kspace_loc.reshape(
-            self.n_frames,
-            len(self.kspace_loc) // self.n_frames,
-            *self.kspace_loc.shape[1:]
-        )
-
-        print(self.kspace_data.shape)
-        print(self.kspace_loc.shape)
-
+        nsf = self.n_shot_frame * self.n_samples_shot * self.OSF
+        self.kspace_loc = self.kspace_loc[nsf*fr_slice[0]:nsf*fr_slice[1]]
+        self.kspace_loc = self.kspace_loc.reshape((self.n_frames, nsf, -1))
         if len(self.shifts) != self.kspace_loc.shape[-1]:
             raise ValueError("Dimension mismatch")
+
         phi = np.zeros(self.kspace_loc.shape[:-1])
         for i in range(self.kspace_loc.shape[-1]):
-            phi[...] += self.kspace_loc[..., i] * self.shifts[i]
-        self.kspace_data *= np.exp(-2 * np.pi * 1j * phi)[:, None, ...]
+            phi += self.kspace_loc[..., i] * self.shifts[i]
+        self.kspace_data *= np.exp(-2 * np.pi * 1j * phi,
+                                   dtype="complex64")[:, None, ...]
+
 
     def __repr__(self):
-        """Show basic infos about the acquisition."""
+        """Display the main characteristic of the acquisition."""
         return (
             "CompressedAcquisition(\n"
             f"shots={self.n_shots}\n"
-            f"samples/shots={self.n_samples}\n"
+            f"samples/shots={self.n_samples_shot}\n"
+            f"shots/frames={self.n_shot_frame}\n"
             f"coils={self.n_coils}\n"
             f"timeframes={self.n_frames}\n"
             f"img_dim={self.DIM}\n"
