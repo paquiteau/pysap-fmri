@@ -4,20 +4,14 @@ Frame based reconstructors.
 this reconstructor consider the time frames (nostly) independently.
 
 """
-import copy
-from IPython.display import clear_output
-
-from joblib import Parallel, delayed
-import progressbar
 import numpy as np
+from mri.operators.gradient.gradient import (GradAnalysis,
+                                             GradSelfCalibrationAnalysis,
+                                             GradSelfCalibrationSynthesis,
+                                             GradSynthesis)
 
-from mri.operators.gradient.gradient import GradAnalysis, GradSynthesis,\
-    GradSelfCalibrationAnalysis, GradSelfCalibrationSynthesis
-from mri.operators.fourier.non_cartesian import gpuNUFFT
-
-from mri.reconstructors.utils.extract_sensitivity_maps import get_Smaps
 from .base import BaseFMRIReconstructor
-from .utils import initialize_opt, OPTIMIZERS
+from .utils import OPTIMIZERS, initialize_opt
 
 
 class SequentialFMRIReconstructor(BaseFMRIReconstructor):
@@ -70,8 +64,8 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
         for i in range(len(kspace_data)):
             # only recreate gradient if the trajectory change.
             grad_op = self.get_grad_op(
-                    self.fourier_op.fourier_ops[i],
-                    **grad_kwargs)
+                self.fourier_op.fourier_ops[i],
+                **grad_kwargs)
 
             # at each step a new frame is loaded
             grad_op._obs_data = kspace_data[i, ...]
