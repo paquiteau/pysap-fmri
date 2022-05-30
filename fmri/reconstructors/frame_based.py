@@ -65,6 +65,7 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
             # only recreate gradient if the trajectory change.
             grad_op = self.get_grad_op(
                 self.fourier_op.fourier_ops[i],
+                input_data_writeable=True,
                 **grad_kwargs)
 
             # at each step a new frame is loaded
