@@ -93,3 +93,16 @@ def carrousel(
     if colorbar:
         fig.colorbar(m)
     return ax
+
+
+def make_movie(filename, array, share_norm=True, fps=2, **kwargs):
+    """Make a movie from a n_frames x N x N array."""
+    import imageio.v2 as imageio
+    array_val = abs(array)
+
+    min_val = np.min(array_val, axis = None if share_norm else (1,2))
+    max_val = np.max(array_val, axis = None if share_norm else (1,2))
+    array_val = 255*(array_val - min_val)/(max_val-min_val)
+    array_val = np.uint8(array_val)
+
+    imageio.mimsave(filename, array_val, fps=fps, **kwargs)
