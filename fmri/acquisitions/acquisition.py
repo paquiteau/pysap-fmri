@@ -62,6 +62,20 @@ class Acquisition:
     """The kspace-side field corection for each interpolator."""
 
 
+    def __repr__(self):
+        ret = f"Acquisition(\n"
+        max_len= max((len(k) for k in self.__dict__))
+        for attr_name, attr_val in self.infos.__dict__.items():
+            ret += " "*4 + f"{attr_name}={attr_val},\n"
+        for arr_name, arr_val in self.__dict__.items():
+            if arr_name == "infos": continue
+            if hasattr(arr_val, "shape") and hasattr(arr_val, "dtype") :
+                ret += f"{arr_name:{max_len}}: {arr_val.dtype}{arr_val.shape},\n"
+            else:
+                ret += f"{arr_name:{max_len}}: {arr_val},\n"
+        ret = ret[:-2] + ")"
+        return ret
+
     @classmethod
     def load(cls, filename:str, frame_range=(0,0)):
         """Load an acquisition from the file.
