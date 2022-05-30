@@ -77,7 +77,7 @@ class Acquisition:
         return ret
 
     @classmethod
-    def load(cls, filename:str, frame_range=(0,0)):
+    def load(cls, filename:str, frame_range=(0,0), no_data=False, no_smaps=False):
         """Load an acquisition from the file.
 
         Parameters
@@ -86,33 +86,39 @@ class Acquisition:
             The filename of the function
         frame_range: tuple
             A 2 or 3 element tuple, use to select a range of temporal frames.
-
+        no_data: bool
+            If the data should not be loaded.
+        no_smaps: bool
+            If the smaps should not be loaded.
         Returns
         -------
         Acquisition: the acquistion instance loaded with data.
 
         """
         fhandle = h5py.File(filename, 'r')
-        infos = AcquisitionInfo(*fhandle.attrs.__dict__)
+
+        infos = AcquisitionInfo()
+        for k in infos.__dict__.keys():
+            setattr(infos,k, fhandle.attrs[k])
+        s_frame = ()
         if frame_range != (0,0):
-            data = fhandle['data'][slice(*frame_range), ...]
-        else:
-            data = fhandle['data'][()]
+            s_frame = np.s_[slice(*frame_range), ...]
+            infos.n_frames = len(range(*frame_range))
+        # initialise empty slice selector for all fields.
+        arr_dict = {k : ()  for k in cls.__annotations__ if k != "infos"}
+        arr_dict['data'] = s_frame
+        if not infos.repeating:
+            arr_dict['samples'] = s_frame
+            arr_dict['density'] = s_frame
+        if no_data: arr_dict.pop("data")
+        if no_smaps: arr_dict.pop("smaps")
 
-        if frame_range != (0,0) and not infos.repeating:
-            samples = fhandle['samples'][slice(*frame_range), ...]
-        else:
-            samples = fhandle['samples'][()]
-
-        density = fhandle['density'][()] if 'density' in fhandle.keys() else None
-        smaps = fhandle['smaps'][()] if 'smaps' in fhandle.keys() else None
-
-        return cls(infos=infos,
-              data=data,
-              samples=samples,
-              smaps=smaps,
-              density=density)
-
+        for arr_name, arr_slice in arr_dict.items():
+            try:
+                arr_dict[arr_name] = fhandle[arr_name][arr_slice]
+            except:
+                arr_dict[arr_name] = None
+        return cls(infos=infos, **arr_dict)
 
     def save(self, filename:str) -> None:
         """Save the data to disk in a archive file.
