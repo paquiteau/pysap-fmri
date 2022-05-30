@@ -6,8 +6,6 @@ this reconstructor consider the time frames (nostly) independently.
 """
 import numpy as np
 from mri.operators.gradient.gradient import (GradAnalysis,
-                                             GradSelfCalibrationAnalysis,
-                                             GradSelfCalibrationSynthesis,
                                              GradSynthesis)
 
 from .base import BaseFMRIReconstructor
