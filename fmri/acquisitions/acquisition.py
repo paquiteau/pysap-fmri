@@ -122,41 +122,56 @@ class Acquisition:
 
     def save(self, filename:str) -> None:
         """Save the data to disk in a archive file.
+
+        Parameters
+        ----------
+        filename: str
         """
-        fhandle = h5py.File(filename, 'a')
+
+        fhandle = h5py.File(filename, 'a', rdcc_nbytes=10*(1024**2))
         # set the metadata
         for key, val in self.infos.__dict__.items():
             fhandle.attrs[key] = val
 
-        fhandle.create_dataset('data',
-                               data=self.data,
-                               compression="gzip",
-                               )
-        fhandle.create_dataset('samples',
-                               data=self.samples,
-                               compression="gzip",
-                               )
-        if self.smaps is not None:
-            fhandle.create_dataset('smaps',
-                                   data=self.samples,
-                                   compression="gzip",
-                                   )
-        if self.density is not None:
-            fhandle.create_dataset('density',
-                                   compression="gzip",
-                                   data=self.density)
+        for arr_name in self.__dict__:
+            if arr_name == "infos": continue
+            val = getattr(self, arr_name, None)
+            if arr_name not in fhandle:
+                if val is not None:
+                    fhandle.create_dataset(
+                        arr_name,
+                        data=val,
+                        chunks=(1, *val.shape[1:]) if val.ndim > 2 else None,
+                        compression="gzip"
+                    )
+            else:
+                warnings.warn(f"existing dataset '{arr_name}' found."
+                              " Leave it as is.")
+
         fhandle.close()
 
     def extract_frames(self, frame_range):
+        """Create a new Acquisition interface with a selected subset of frames.
+
+        Parameters
+        ----------
+        frame_range: tuple
+            A tuple specifing the start, stop, and optionally step
+            (just like python build-in range)
+        """
         if self.samples.ndim == 3:
             samples = self.samples[slice(*frame_range), ...]
-        data = self.data[slice(*frame_range), ...]
-
-
+        else:
+            samples = self.samples.copy()
+        infos = AcquisitionInfo(**self.infos.__dict__)
+        infos.n_frames = len(range(*frame_range))
         return Acquisition(
-            infos=AcquisitionInfo(*self.infos.__dict__),
-            data=data,
+            infos=infos,
+            data=self.data[slice(*frame_range), ...],
             samples=samples,
-            density=self.density,
+            density=self.density[slice(*frame_range), ...] if not self.repeating else self.density,
             smaps=self.smaps,
+            b0_map=self.b0_map,
+            image_field_correction=self.image_field_correction,
+            kspace_field_correction=self.kspace_field_correction,
         )
