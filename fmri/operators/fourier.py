@@ -28,29 +28,28 @@ class SpaceFourier:
         List of NonCartesianFFT Operator
     """
 
-    def __init__(self, samples, shape, n_coils=1, n_frames=1, smaps=None, smaps_cached=True, estimate_density=True,  **kwargs):
+    def __init__(self, samples, shape, n_coils=1, n_frames=0, smaps=None, smaps_cached=True, density=True,  **kwargs):
         self.n_frames = n_frames
         self.n_coils = n_coils
         self.smaps = smaps
         self.shape = shape
 
-        repeat = False
-        if samples.ndim == 2 and n_frames is None:
+        if samples.ndim == 2 and n_frames == 0:
             raise ValueError(
                 "2D array of samples provided, but n_frames is not specified.")
         if samples.ndim == 2:
             self.samples = np.repeat(samples[None, ...], n_frames, axis=0)
-            repeat = True
+            self.n_samples_per_frame = samples.shape[0]
         elif samples.ndim == 3:
             self.samples = samples
+            self.n_samples_per_frame = samples.shape[1]
         else:
             raise ValueError("samples array should be 2D or 3D.")
 
-        if estimate_density and repeat:
-            print("repeat")
+        if density is True and samples.ndim == 2:
             density = MRICufiNUFFT.estimate_density(samples, self.shape, n_iter=20)
         else:
-            density = estimate_density
+            density = density
         self.fourier_ops = []
         for i in range(n_frames):
             self.fourier_ops.append(MRICufiNUFFT(
@@ -59,15 +58,16 @@ class SpaceFourier:
                 n_coils=n_coils,
                 smaps=cp.array(smaps, copy=False) if smaps is not None and smaps_cached else smaps,
                 smaps_cached=smaps_cached,
-                density=density,
+                density=density[i] if isinstance(density, np.ndarray) and density.ndim == 2 else density,
                 **kwargs,
             ))
 
     def op(self, data):
         """Forward Operator method."""
         adj_data = np.squeeze(
-            np.zeros((self.n_frames, self.n_coils, *self.shape),
+            np.zeros((self.n_frames, self.n_coils, self.n_samples_per_frame),
                      dtype='complex64'))
+
         for i in range(self.n_frames):
             adj_data[i] = self.fourier_ops[i].op(data[i])
         return adj_data
