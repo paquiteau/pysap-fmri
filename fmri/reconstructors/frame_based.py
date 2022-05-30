@@ -12,6 +12,7 @@ from mri.operators.gradient.gradient import (GradAnalysis,
 
 from .base import BaseFMRIReconstructor
 from .utils import OPTIMIZERS, initialize_opt
+from tqdm.auto import trange, tqdm
 
 
 class SequentialFMRIReconstructor(BaseFMRIReconstructor):
@@ -44,7 +45,7 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
         raise ValueError("Unknown Gradient formuation")
 
     def reconstruct(self, kspace_data, x_init=None, max_iter_per_frame=15,
-                    reset_opt=True, grad_kwargs=None,
+                    grad_kwargs=None,
                     warm_x=True):
         """Reconstruct using sequential method."""
         grad_kwargs = {} if grad_kwargs is None else grad_kwargs
@@ -61,7 +62,9 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
                              "Also, the number of coils should match.")
 
         next_init = x_init
-        for i in range(len(kspace_data)):
+        progbar_main=trange(len(kspace_data))
+        progbar = tqdm(total=max_iter_per_frame)
+        for i in progbar_main:
             # only recreate gradient if the trajectory change.
             grad_op = self.get_grad_op(
                 self.fourier_op.fourier_ops[i],
@@ -71,8 +74,7 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
             # at each step a new frame is loaded
             grad_op._obs_data = kspace_data[i, ...]
             # reset Smaps and optimizer if required.
-            if reset_opt:
-                opt = initialize_opt(opt_name=self.opt_name,
+            opt = initialize_opt(opt_name=self.opt_name,
                                      grad_op=grad_op,
                                      linear_op=self.space_linear_op,
                                      prox_op=self.space_prox_op,
@@ -83,9 +85,11 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
             # if no reset, the internal state is kept.
             # (e.g. dual variable, dynamic step size)
             if i == 0 and warm_x:
-                opt.iterate(max_iter=3 * max_iter_per_frame)
+                progbar.reset(total=3 * max_iter_per_frame)
+                opt.iterate(max_iter=3 * max_iter_per_frame, progbar=progbar)
             else:
-                opt.iterate(max_iter=max_iter_per_frame)
+                progbar.reset(total=max_iter_per_frame)
+                opt.iterate(max_iter=max_iter_per_frame, progbar=progbar)
 
             # Prepare for next iteration and save results
             if self.grad_formulation == "synthesis":
@@ -95,5 +99,5 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
             next_init = img if warm_x else x_init
             final_estimate[i, ...] = img
             # Progressbar update
-            clear_output(wait=True)
+        progbar.close()
         return final_estimate
