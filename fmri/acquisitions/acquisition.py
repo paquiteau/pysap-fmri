@@ -1,32 +1,47 @@
 """Pre process, create, save and load acquisition data."""
 from dataclasses import dataclass
+import warnings
 import numpy as np
 
 import h5py
 
-@dataclass(frozen=True)
+@dataclass
 class AcquisitionInfo:
-    """Informations about an acquisition."""
-    shape: tuple = None
+    """Informations about an acquisition.
+    ----------
+    """
+    shape: np.ndarray = None
     """The shape of the image space."""
     fov: np.ndarray = None
     """The field of view of the image space, specified in meters for
     each dimension."""
-    n_samples: int = 1
+    n_samples_per_shot: int = 1
     """The number of samples per shot."""
+    n_shot_per_frame: int = 1
+    """The number of shot per frame."""
+    n_samples_per_frame: int = 1
+    """The  number of samples per frame."""
     n_coils: int = 1
     """The number of coil available."""
     n_frames: int = 1
     """The number of frames available."""
+    n_interpolator: int = 0
+    """The number of interpolator used for the field correction."""
+    TE: float = 0.0
+    """The TE for each shot."""
+    osf: int = 0
+    """The ADC oversampling factor"""
     normalize: str = "unit"
     """The normalization convention for the samples."""
     repeating: bool = False
     """If the trajectory is repeating at each frame."""
+
     @property
     def ndim(self):
         return len(self.shape)
 
-@dataclass(frozen=False)
+
+@dataclass
 class Acquisition:
     """The information about """
     infos: AcquisitionInfo = None
@@ -39,6 +54,13 @@ class Acquisition:
     """The samples density compensation values (n_samples)"""
     smaps: np.ndarray = None
     """The smaps (n_coils x *shape)"""
+    b0_map: np.ndarray = None
+    """The Field inhomogeneity map."""
+    image_field_correction: np.ndarray = None
+    """The image-side field correction for each interpolator."""
+    kspace_field_correction: np.ndarray = None
+    """The kspace-side field corection for each interpolator."""
+
 
     @classmethod
     def load(cls, filename:str, frame_range=(0,0)):
