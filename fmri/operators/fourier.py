@@ -3,7 +3,7 @@ import numpy as np
 import scipy as sp
 import cupy as cp
 
-from mriCufinufft import MRICufiNUFFT
+from mriCufinufft import MRICufiNUFFT, MRIFourierCorrected
 
 
 class SpaceFourier:
@@ -86,6 +86,52 @@ class SpaceFourier:
         for i in range(self.n_frames):
             data[i] = self.fourier_ops[i].adj_op(adj_data[i])
         return data
+
+    @classmethod
+    def from_acquisition(cls, acquisition, orc=True, **kwargs):
+        if 'density' in kwargs.keys():
+            density = kwargs.pop('density')
+        else:
+            density = acquisition.density
+        fop = cls(
+            samples=acquisition.samples,
+            shape=acquisition.infos.shape,
+            n_coils=acquisition.infos.n_coils,
+            n_frames=acquisition.infos.n_frames,
+            smaps=acquisition.smaps,
+            density=density,
+            **kwargs,
+        )
+        if acquisition.infos.n_interpolator > 0 and orc:
+            fop.add_field_correction(acquisition.b0_map,
+                                     acquisition.image_field_correction,
+                                     acquisition.kspace_field_correction,
+                                     )
+        return fop
+
+    def add_field_correction(self, field_map, image_field_cor, kspace_field_cor):
+        """Add off-resonance field correction to each frames."""
+        if field_map.ndim == 2:
+            # use the same correction for all frame
+            image_field_cor_d = cp.array(image_field_cor)
+            kspace_field_cor_d = cp.array(kspace_field_cor)
+            n_bins = image_field_cor.shape[-1]
+            range_w = (np.min(field_map), np.max(field_map))
+            scale = (range_w[1] - range_w[0]) / n_bins
+            scale = scale if (scale != 0) else 1
+            indices = np.around((field_map - range_w[0]) / scale).astype(int)
+            indices = np.clip(indices, 0, n_bins - 1)
+
+            for i in range(self.n_frames):
+                self.fourier_ops[i] = MRIFourierCorrected(
+                    self.fourier_ops[i],
+                    kspace_field_cor_d,
+                    image_field_cor_d,
+                    indices
+                )
+        else:
+            raise NotImplementedError
+
 
 
 class TimeFourier:
