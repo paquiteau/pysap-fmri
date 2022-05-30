@@ -231,22 +231,3 @@ def process_raw_acquisition(
     if save_to != "":
         acq.save(save_to)
     return acq
-
-def estimate_density_from_file(filename:str, writeback=True, **kwargs):
-    """Estimate the density compensation of an acquisition trajectory.
-
-    Only the samples are loaded from the acquisition file
-    Parameters
-    ----------
-    filename: str
-        The acquisition file
-    writeback: bool
-        If (default True) the acquisition file should be update with the new density
-    **kwargs:
-        Extra argument for the density compensation estimation.
-
-    Returns
-    -------
-    density array.
-    """
-    pass
