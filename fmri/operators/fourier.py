@@ -32,10 +32,19 @@ class SpaceFourierBase(abc.ABC):
     """
 
     def __init__(self, shape, n_coils=1, n_frames=1, smaps=None):
+
+        if (
+            smaps is not None
+            and n_coils != len(smaps)
+            and smaps.shape[:-1] == tuple(shape)
+        ):
+            raise ValueError("smaps should  have dimension n_coils x shape")
+
         self.n_frames = n_frames
         self.n_coils = n_coils
         self.smaps = smaps
         self.shape = shape
+        self.fourier_ops = []
 
     def op(self, data):
         """Forward Operator method."""
