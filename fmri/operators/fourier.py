@@ -1,4 +1,5 @@
 """Fourier Operator for fMRI data."""
+import abc
 import numpy as np
 import scipy as sp
 import cupy as cp
@@ -10,21 +11,19 @@ except ImportError:
     MRI_CUFINUFFT_AVAILABLE = False
 
 
-class SpaceFourierBase:
+class SpaceFourierBase(abc.ABC):
     """Spatial Fourier Transform on fMRI data.
 
     Parameters
     ----------
-    samples: np.ndarray
-        2D or 3D array of samples coordinates for non cartesian fourier
+    shape: tuple
+        Dimensions of the FFT
     n_frames: int
         Number of frames for the reconstruction
     n_coils: int
         Number of coils for pMRI, default 1.
     smaps: np.ndarray
         Sensitivity Maps, shared across time.
-    estimate_density: 'gpu' | 'cpu'
-        Method to estimate the density compensation.
 
     Attributes
     ----------
