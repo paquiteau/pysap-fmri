@@ -5,6 +5,8 @@ import scipy as sp
 import cupy as cp
 
 from .utils import validate_smaps
+from .fft import FFT, StackedFFT
+
 MRI_CUFINUFFT_AVAILABLE = True
 try:
     from mriCufinufft import MRICufiNUFFT
@@ -67,6 +69,44 @@ class SpaceFourierBase(abc.ABC):
         for i in range(self.n_frames):
             data[i] = self.fourier_ops[i].adj_op(adj_data[i])
         return data
+
+    pass
+
+
+class CartesianSpaceFourier(SpaceFourierBase):
+    """Cartesian Fourier Transform on fMRI data.
+
+    Parameters
+    ----------
+    shape: tuple
+        Dimensions of the FFT
+    mask: np.ndarray
+        ND array sampling mask
+    n_frames: int
+        Number of frames for the reconstruction
+    n_coils: int
+        Number of coils for pMRI, default 1.
+    smaps: np.ndarray
+        Sensitivity Maps, shared across time.
+    """
+
+    def __init__(self, shape, mask=None, n_coils=1, n_frames=1, smaps=None):
+        super().__init__(shape, n_coils, n_frames, smaps=None)
+
+        if mask is None:
+            # fully sampled
+            self.mask = None
+        elif mask.shape == shape:
+            # share mask for every frames.
+            ...
+        elif mask.shape == (*shape, n_frames):
+            # custom mask for every frame.
+            ...
+        elif mask.shape[0] == n_frames:
+            # mask is a selection of slice for each frame.
+            ...
+        else:
+            raise ValueError("incompatible mask format")
 
 
 class NonCartesianSpaceFourier(SpaceFourierBase):
