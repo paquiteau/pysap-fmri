@@ -1,15 +1,15 @@
 """Pre process, create, save and load acquisition data."""
-from dataclasses import dataclass
 import warnings
-import numpy as np
+from dataclasses import dataclass
 
 import h5py
+import numpy as np
+
 
 @dataclass
 class AcquisitionInfo:
-    """Informations about an acquisition.
-    ----------
-    """
+    """Informations about an acquisition."""
+
     shape: np.ndarray = None
     """The shape of the image space."""
     fov: np.ndarray = None
@@ -38,12 +38,14 @@ class AcquisitionInfo:
 
     @property
     def ndim(self):
+        """Return number of dimension of the data."""
         return len(self.shape)
 
 
 @dataclass
 class Acquisition:
-    """The information about """
+    """All data related to an acquisition."""
+
     infos: AcquisitionInfo = None
     """Information about the acquisition"""
     samples: np.ndarray = None
@@ -61,15 +63,15 @@ class Acquisition:
     kspace_field_correction: np.ndarray = None
     """The kspace-side field corection for each interpolator."""
 
-
     def __repr__(self):
-        ret = f"Acquisition(\n"
-        max_len= max((len(k) for k in self.__dict__))
+        ret = "Acquisition(\n"
+        max_len = max((len(k) for k in self.__dict__))
         for attr_name, attr_val in self.infos.__dict__.items():
-            ret += " "*4 + f"{attr_name}={attr_val},\n"
+            ret += " " * 4 + f"{attr_name}={attr_val},\n"
         for arr_name, arr_val in self.__dict__.items():
-            if arr_name == "infos": continue
-            if hasattr(arr_val, "shape") and hasattr(arr_val, "dtype") :
+            if arr_name == "infos":
+                continue
+            if hasattr(arr_val, "shape") and hasattr(arr_val, "dtype"):
                 ret += f"{arr_name:{max_len}}: {arr_val.dtype}{arr_val.shape},\n"
             else:
                 ret += f"{arr_name:{max_len}}: {arr_val},\n"
@@ -77,11 +79,11 @@ class Acquisition:
         return ret
 
     @classmethod
-    def load(cls, filename:str, frame_range=(0,0), no_data=False, no_smaps=False):
+    def load(cls, filename: str, frame_range=(0, 0), no_data=False, no_smaps=False):
         """Load an acquisition from the file.
 
         Parameters
-        ---------
+        ----------
         filename: str
             The filename of the function
         frame_range: tuple
@@ -90,51 +92,54 @@ class Acquisition:
             If the data should not be loaded.
         no_smaps: bool
             If the smaps should not be loaded.
+
         Returns
         -------
         Acquisition: the acquistion instance loaded with data.
 
         """
-        fhandle = h5py.File(filename, 'r')
+        fhandle = h5py.File(filename, "r")
 
         infos = AcquisitionInfo()
         for k in infos.__dict__.keys():
-            setattr(infos,k, fhandle.attrs[k])
+            setattr(infos, k, fhandle.attrs[k])
         s_frame = ()
-        if frame_range != (0,0):
+        if frame_range != (0, 0):
             s_frame = np.s_[slice(*frame_range), ...]
             infos.n_frames = len(range(*frame_range))
         # initialise empty slice selector for all fields.
-        arr_dict = {k : ()  for k in cls.__annotations__ if k != "infos"}
-        arr_dict['data'] = s_frame
+        arr_dict = {k: () for k in cls.__annotations__ if k != "infos"}
+        arr_dict["data"] = s_frame
         if not infos.repeating:
-            arr_dict['samples'] = s_frame
-            arr_dict['density'] = s_frame
-        if no_data: arr_dict.pop("data")
-        if no_smaps: arr_dict.pop("smaps")
+            arr_dict["samples"] = s_frame
+            arr_dict["density"] = s_frame
+        if no_data:
+            arr_dict.pop("data")
+        if no_smaps:
+            arr_dict.pop("smaps")
 
         for arr_name, arr_slice in arr_dict.items():
             try:
                 arr_dict[arr_name] = fhandle[arr_name][arr_slice]
-            except:
+            except Exception:
                 arr_dict[arr_name] = None
         return cls(infos=infos, **arr_dict)
 
-    def save(self, filename:str) -> None:
+    def save(self, filename: str) -> None:
         """Save the data to disk in a archive file.
 
         Parameters
         ----------
         filename: str
         """
-
-        fhandle = h5py.File(filename, 'a', rdcc_nbytes=10*(1024**2))
+        fhandle = h5py.File(filename, "a", rdcc_nbytes=10 * (1024**2))
         # set the metadata
         for key, val in self.infos.__dict__.items():
             fhandle.attrs[key] = val
 
         for arr_name in self.__dict__:
-            if arr_name == "infos": continue
+            if arr_name == "infos":
+                continue
             val = getattr(self, arr_name, None)
             if arr_name not in fhandle:
                 if val is not None:
@@ -142,11 +147,12 @@ class Acquisition:
                         arr_name,
                         data=val,
                         chunks=(1, *val.shape[1:]) if val.ndim > 2 else None,
-                        compression="gzip"
+                        compression="gzip",
                     )
             else:
-                warnings.warn(f"existing dataset '{arr_name}' found."
-                              " Leave it as is.")
+                warnings.warn(
+                    f"existing dataset '{arr_name}' found." " Leave it as is."
+                )
 
         fhandle.close()
 
@@ -169,7 +175,9 @@ class Acquisition:
             infos=infos,
             data=self.data[slice(*frame_range), ...],
             samples=samples,
-            density=self.density[slice(*frame_range), ...] if not self.repeating else self.density,
+            density=self.density[slice(*frame_range), ...]
+            if not self.repeating
+            else self.density,
             smaps=self.smaps,
             b0_map=self.b0_map,
             image_field_correction=self.image_field_correction,
