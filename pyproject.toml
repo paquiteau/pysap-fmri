@@ -20,6 +20,7 @@ requires = ["setuptools", "wheel"]
 
 [tool.flake8]
 docstring-convention = "numpy"
+ignore = ["D105"]
 
 [tool.coverage.run]
 omit = ["*tests*"]
@@ -30,6 +31,10 @@ exclude_lines = ["pragma: no cover", "raise NotImplementedError"]
 
 # Formatting using black.
 [tool.black]
+
+[tool.isort]
+profile = "black"
+
 
 [tool.pytest.ini_options]
 minversion = "6.0"
