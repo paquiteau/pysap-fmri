@@ -1,4 +1,7 @@
-"""Pre process, create, save and load acquisition data."""
+"""Pre process, create, save and load acquisition data.
+
+TODO: add function to resample acquisition frames (sliding window)
+"""
 import warnings
 from dataclasses import dataclass
 
