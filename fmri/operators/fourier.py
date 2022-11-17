@@ -1,17 +1,19 @@
 """Fourier Operator for fMRI data."""
 import abc
+
 import numpy as np
 import scipy as sp
-import cupy as cp
 
-from .utils import validate_smaps
 from .fft import FFT, StackedFFT
+from .utils import validate_smaps
 
 MRI_CUFINUFFT_AVAILABLE = True
 try:
     from mriCufinufft import MRICufiNUFFT
 except ImportError:
     MRI_CUFINUFFT_AVAILABLE = False
+else:
+    import cupy as cp
 
 
 class SpaceFourierBase(abc.ABC):
@@ -41,7 +43,7 @@ class SpaceFourierBase(abc.ABC):
         self.n_coils = n_coils
         self.smaps = smaps
         self.shape = shape
-        self.fourier_ops = []
+        self.fourier_ops = [None] * n_frames
 
     def op(self, data):
         """Forward Operator method."""
@@ -70,8 +72,6 @@ class SpaceFourierBase(abc.ABC):
             data[i] = self.fourier_ops[i].adj_op(adj_data[i])
         return data
 
-    pass
-
 
 class CartesianSpaceFourier(SpaceFourierBase):
     """Cartesian Fourier Transform on fMRI data.
@@ -90,23 +90,24 @@ class CartesianSpaceFourier(SpaceFourierBase):
         Sensitivity Maps, shared across time.
     """
 
-    def __init__(self, shape, mask=None, n_coils=1, n_frames=1, smaps=None):
+    def __init__(self, shape, mask=None, n_coils=1, n_frames=1, smaps=None, n_jobs=-1):
         super().__init__(shape, n_coils, n_frames, smaps=None)
 
         if mask is None:
-            # fully sampled
-            self.mask = None
+            self.mask = np.ones(n_frames)
         elif mask.shape == shape:
-            # share mask for every frames.
-            ...
+            # common mask for all frames.
+            self.mask = [mask] * n_frames
         elif mask.shape == (*shape, n_frames):
             # custom mask for every frame.
-            ...
-        elif mask.shape[0] == n_frames:
-            # mask is a selection of slice for each frame.
-            ...
+            self.mask = mask
         else:
             raise ValueError("incompatible mask format")
+
+        for i in range(n_frames):
+            self.fourier_ops[i] = FFT(
+                self.shape, mask[i], n_coils=self.n_coils, smaps=smaps, n_jobs=n_jobs
+            )
 
 
 class NonCartesianSpaceFourier(SpaceFourierBase):
@@ -160,28 +161,27 @@ class NonCartesianSpaceFourier(SpaceFourierBase):
         else:
             raise ValueError("samples array should be 2D or 3D.")
 
-        if density is True and samples.ndim == 2:
+        if estimate_density is True and samples.ndim == 2:
             density = MRICufiNUFFT.estimate_density(samples, self.shape, n_iter=20)
         else:
             density = density
-        self.fourier_ops = []
+        smaps = (
+            cp.array(smaps, copy=False) if smaps is not None and smaps_cached else smaps
+        )
         for i in range(n_frames):
-            self.fourier_ops.append(
-                MRICufiNUFFT(
-                    self.samples[i],
-                    shape,
-                    n_coils=n_coils,
-                    smaps=cp.array(smaps, copy=False)
-                    if smaps is not None and smaps_cached
-                    else smaps,
-                    smaps_cached=smaps_cached,
-                    density=density,
-                    **kwargs,
-                )
+            self.fourier_ops[i] = MRICufiNUFFT(
+                self.samples[i],
+                shape,
+                n_coils=n_coils,
+                smaps=smaps,
+                smaps_cached=smaps_cached,
+                density=density,
+                **kwargs,
             )
 
     @classmethod
     def from_acquisition(cls, acquisition, orc=True, **kwargs):
+        """Generate the operator from a acquisition object."""
         if "density" in kwargs.keys():
             density = kwargs.pop("density")
         else:
@@ -202,26 +202,6 @@ class NonCartesianSpaceFourier(SpaceFourierBase):
                 acquisition.kspace_field_correction,
             )
         return fop
-
-    def add_field_correction(self, field_map, image_field_cor, kspace_field_cor):
-        """Add off-resonance field correction to each frames."""
-        if field_map.ndim == 2:
-            # use the same correction for all frame
-            image_field_cor_d = cp.array(image_field_cor)
-            kspace_field_cor_d = cp.array(kspace_field_cor)
-            n_bins = image_field_cor.shape[-1]
-            range_w = (np.min(field_map), np.max(field_map))
-            scale = (range_w[1] - range_w[0]) / n_bins
-            scale = scale if (scale != 0) else 1
-            indices = np.around((field_map - range_w[0]) / scale).astype(int)
-            indices = np.clip(indices, 0, n_bins - 1)
-
-            for i in range(self.n_frames):
-                self.fourier_ops[i] = MRIFourierCorrected(
-                    self.fourier_ops[i], kspace_field_cor_d, image_field_cor_d, indices
-                )
-        else:
-            raise NotImplementedError
 
 
 class TimeFourier:
