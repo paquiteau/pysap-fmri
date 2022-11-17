@@ -9,11 +9,17 @@ dependencies = ["python-pysap"]
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov", "pytest-xdist", "pytest-sugar"]
 doc = ["pydata-sphinx-theme", "numpydoc", "sphinx_gallery", "sphinx", "sphinx-autoapi"]
-dev = ["black", "isort"]
+dev = ["black", "isort", "flake8-pyproject", "flake8-black"]
 
 [build-system]
 requires = ["setuptools", "wheel"]
 
+######################
+# Tool configuration #
+######################
+
+[tool.flake8]
+docstring-convention = "numpy"
 
 [tool.coverage.run]
 omit = ["*tests*"]
@@ -24,7 +30,6 @@ exclude_lines = ["pragma: no cover", "raise NotImplementedError"]
 
 # Formatting using black.
 [tool.black]
-
 
 [tool.pytest.ini_options]
 minversion = "6.0"
