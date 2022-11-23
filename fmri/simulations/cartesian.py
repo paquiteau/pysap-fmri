@@ -40,8 +40,12 @@ def get_kspace_slice_loc(
     center_indexes = indexes[center_start:center_stop]
     borders = np.asarray([*indexes[:center_start], *indexes[center_stop:]])
 
-    n_samples_borders = int(dim_size / accel - len(center_indexes))
-
+    n_samples_borders = int((dim_size / accel) - len(center_indexes))
+    if n_samples_borders < 1:
+        raise ValueError(
+            "acceleration factor, center_prop and dimension not compatible."
+            "Edges will not be sampled. "
+        )
     rng = validate_rng(rng)
 
     if pdf == "gaussian":
