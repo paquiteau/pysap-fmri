@@ -37,66 +37,74 @@ def dynamic_img(fmri_img, fps: float = 2, normalize=True):
         plt.show()
 
 
-def carrousel(
-    fmri_img,
-    ax=None,
-    frame_slicer=None,
-    colorbar=False,
-    pad=1,
-    layout=None,
-    normalized=False,
-        mode="portrait",
-):
-    """
-    Display frames in a single plot.
+def fit_grid(n_tiles):
+    """Give the number of row and columns to optimally fit n_tiles."""
 
-    Returns
-    -------
-    fig: figure object.
-    """
-    f_size = np.array(fmri_img.shape[1:])
-    if frame_slicer is None:
-        frame_slicer = slice(0, min(len(fmri_img), 10))
-    index_select = np.arange(len(fmri_img))[frame_slicer]
-    to_show = fmri_img[frame_slicer, ...]
-    n_plots = len(to_show)
-    if layout is None and len(to_show) == 10:
-        n_rows, n_cols = 2, 5
-    elif layout is None:
-        n_cols = np.ceil(np.sqrt(n_plots)).astype(np.int)
-        n_rows = np.floor(np.sqrt(n_plots)).astype(np.int)
-        if n_cols * n_rows < n_plots:
+    n_rows = int(np.sqrt(n_tiles))
+    n_cols = n_rows
+    while n_rows * n_cols < n_tiles:
+        if n_rows < n_cols:
+            n_rows += 1
+        else:
             n_cols += 1
+    return n_rows, n_cols
+
+
+def mosaic(array, axis=-1, samples=-1, n_rows=-1, n_cols=-1, img_w=3, **kwargs):
+    """Plot a 3D array as a mosaic grid of 2D images."""
+    if array.ndim != 3:
+        raise ValueError("Only 3D array are supported.")
+    if axis < 0:
+        axis = 3 + axis
+
+    slicer = [slice(None), slice(None), slice(None)]
+    axis_label = ["x", "y", "z"]
+
+    if samples == -1:
+        samples_loc = np.arange(array.shape[axis])
+        step = 1
     else:
-        n_rows, n_cols = layout
+        step = array.shape[axis] // (samples + 1)
 
-    if mode == "portrait" and n_rows < n_cols:
-        n_rows, n_cols = n_cols, n_rows
+        samples_loc = np.arange(1, samples + 1) * step
 
-    vignette = np.empty((f_size + pad) * np.array((n_rows, n_cols)) - pad)
-    if ax is None:
-        fig, ax = plt.subplots()
-    vignette[:] = np.NaN
-    for i in range(n_rows):
-        for j in range(n_cols):
-            if j + i * n_cols >= len(to_show):
-                break
-            if normalized:
-                show = normalize(abs(to_show[i * n_cols + j]))
-            else:
-                show = abs(to_show[i * n_cols + j])
-            vignette[
-                i * (f_size[0] + pad):(i + 1) * (f_size[0]) + i * pad,
-                j * (f_size[1] + pad):(j + 1) * f_size[1] + j * pad] = show
-            ax.text(
-                (j + 0.01) * (f_size[1] + pad),
-                (i + 0.05) * (f_size[0] + pad),
-                f'{index_select[i*n_cols+j]}', color='red')
-    m = ax.imshow(vignette)
-    ax.axis('off')
-    if colorbar:
-        fig.colorbar(m)
-    return ax
+    n_samples = len(samples_loc)
+    array_list = [array[(*slicer[:axis], s, *slicer[axis + 1 :])] for s in samples_loc]
+
+    if n_rows == -1 and n_cols != -1:
+        while n_rows * n_cols < n_samples:
+            n_rows += 1
+    elif n_rows != -1 and n_cols == -1:
+        while n_rows * n_cols < n_samples:
+            n_cols += 1
+    elif n_rows == -1 and n_cols == -1:
+        n_rows, n_cols = fit_grid(n_samples)
+    print(array_list[0].shape)
+    aspect_ratio = array_list[0].shape[0] / array_list[0].shape[1]
+
+    fig = plt.figure(figsize=(n_cols * img_w, n_rows * img_w * aspect_ratio))
+    gs = fig.add_gridspec(
+        n_rows,
+        n_cols,
+        hspace=0.01,
+        wspace=0.01,
+    )
+    axs_2d = gs.subplots()
+    axs = axs_2d.flatten()
+    for i, img in enumerate(array_list):
+        ax = axs[i]
+        ax.axis("off")
+        if np.any(np.iscomplex(img)):
+            ax.imshow(abs(img))
+        else:
+            ax.imshow(img)
+        ax.text(
+            0.05,
+            0.95,
+            f"{axis_label[axis]}={step*i}",
+            transform=ax.transAxes,
+        )
+    return fig
 
 
 def make_movie(filename, array, share_norm=True, fps=2, **kwargs):
