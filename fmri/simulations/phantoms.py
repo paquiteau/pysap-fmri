@@ -163,54 +163,25 @@ def mr_ellipsoid_parameters():
         Parameters for the ellipsoids used to construct the phantom.
     """
     params = _mr_relaxation_parameters()
-
+    # fmt: off
     E = np.zeros((15, 13))
-    # [:, [x, y, z, a, b, c, theta, m0, A, C, (t1), t2, chi]]
-    E[0, :] = [0, 0, 0, 0.72, 0.95, 0.93, 0, 0.8, *params["scalp"]]
-    E[1, :] = [0, 0, 0, 0.69, 0.92, 0.9, 0, 0.12, *params["marrow"]]
-    E[2, :] = [0, -0.0184, 0, 0.6624, 0.874, 0.88, 0, 0.98, *params["csf"]]
-    E[3, :] = [0, -0.0184, 0, 0.6524, 0.864, 0.87, 0, 0.745, *params["gray-matter"]]
-    E[4, :] = [-0.22, 0, -0.25, 0.41, 0.16, 0.21, np.deg2rad(-72), 0.98, *params["csf"]]
-    E[5, :] = [0.22, 0, -0.25, 0.31, 0.11, 0.22, np.deg2rad(72), 0.98, *params["csf"]]
-    E[6, :] = [0, 0.35, -0.25, 0.21, 0.25, 0.35, 0, 0.617, *params["white-matter"]]
-    E[7, :] = [0, 0.1, -0.25, 0.046, 0.046, 0.046, 0, 0.95, *params["tumor"]]
-    E[8, :] = [-0.08, -0.605, -0.25, 0.046, 0.023, 0.02, 0, 0.95, *params["tumor"]]
-    E[9, :] = [
-        0.06,
-        -0.605,
-        -0.25,
-        0.046,
-        0.023,
-        0.02,
-        np.deg2rad(-90),
-        0.95,
-        *params["tumor"],
-    ]
-    E[10, :] = [0, -0.1, -0.25, 0.046, 0.046, 0.046, 0, 0.95, *params["tumor"]]
-    E[11, :] = [0, -0.605, -0.25, 0.023, 0.023, 0.023, 0, 0.95, *params["tumor"]]
-    E[12, :] = [
-        0.06,
-        -0.105,
-        0.0625,
-        0.056,
-        0.04,
-        0.1,
-        np.deg2rad(-90),
-        0.93,
-        *params["tumor"],
-    ]
-    E[13, :] = [0, 0.1, 0.625, 0.056, 0.056, 0.1, 0, 0.98, *params["csf"]]
-    E[14, :] = [
-        0.56,
-        -0.4,
-        -0.25,
-        0.2,
-        0.03,
-        0.1,
-        np.deg2rad(70),
-        0.85,
-        *params["blood-clot"],
-    ]
+    #      [:, [x,     y,       z,      a,      b,     c,     theta,           m0,    A, C, (t1), t2, chi]]  # noqa
+    E[0,  :] = [0,     0,       0,      0.72,   0.95,  0.93,  0,               0.8,   *params["scalp"]]  # noqa
+    E[1,  :] = [0,     0,       0,      0.69,   0.92,  0.9,   0,               0.12,  *params["marrow"]]  # noqa
+    E[2,  :] = [0,     -0.0184, 0,      0.6624, 0.874, 0.88,  0,               0.98,  *params["csf"]]  # noqa
+    E[3,  :] = [0,     -0.0184, 0,      0.6524, 0.864, 0.87,  0,               0.745, *params["gray-matter"]]  # noqa
+    E[4,  :] = [-0.22, 0,       -0.25,  0.41,   0.16,  0.21,  np.deg2rad(-72), 0.98,  *params["csf"]]  # noqa
+    E[5,  :] = [0.22,  0,       -0.25,  0.31,   0.11,  0.22,  np.deg2rad(72),  0.98,  *params["csf"]]  # noqa
+    E[6,  :] = [0,     0.35,    -0.25,  0.21,   0.25,  0.35,  0,               0.617, *params["white-matter"]]  # noqa
+    E[7,  :] = [0,     0.1,     -0.25,  0.046,  0.046, 0.046, 0,               0.95,  *params["tumor"]]  # noqa
+    E[8,  :] = [-0.08, -0.605,  -0.25,  0.046,  0.023, 0.02,  0,               0.95,  *params["tumor"]]  # noqa
+    E[9,  :] = [0.06,  -0.605,  -0.25,  0.046,  0.023, 0.02,  np.deg2rad(-90), 0.95,  *params["tumor"]]  # noqa
+    E[10, :] = [0,     -0.1,    -0.25,  0.046,  0.046, 0.046, 0,               0.95,  *params["tumor"]]  # noqa
+    E[11, :] = [0,     -0.605,  -0.25,  0.023,  0.023, 0.023, 0,               0.95,  *params["tumor"]]  # noqa
+    E[12, :] = [0.06,  -0.105,  0.0625, 0.056,  0.04,  0.1,   np.deg2rad(-90), 0.93,  *params["tumor"]]  # noqa
+    E[13, :] = [0,     0.1,     0.625,  0.056,  0.056, 0.1,   0,               0.98,  *params["csf"]]         # noqa
+    E[14, :] = [0.56,  -0.4,    -0.25,  0.2,    0.03,  0.1,   np.deg2rad(70),  0.85,  *params["blood-clot"]]  # noqa
+    # fmt: on
 
     # Need to subtract some ellipses here...
     Eneg = np.zeros(E.shape)
@@ -255,12 +226,14 @@ def _mr_relaxation_parameters():
     np.nan, then specified t1 will be used.
     """
     # params['tissue-name'] = [A, C, (t1 value if explicit), t2, chi]
+    # fmt: off
     params = dict()
-    params["scalp"] = [0.324, 0.137, np.nan, 0.07, -7.5e-6]
-    params["marrow"] = [0.533, 0.088, np.nan, 0.05, -8.85e-6]
-    params["csf"] = [np.nan, np.nan, 4.2, 1.99, -9e-6]
-    params["blood-clot"] = [1.35, 0.34, np.nan, 0.2, -9e-6]
-    params["gray-matter"] = [0.857, 0.376, np.nan, 0.1, -9e-6]
-    params["white-matter"] = [0.583, 0.382, np.nan, 0.08, -9e-6]
-    params["tumor"] = [0.926, 0.217, np.nan, 0.1, -9e-6]
+    params["scalp"]        = [0.324,  0.137,  np.nan, 0.07, -7.5e-6]  # noqa
+    params["marrow"]       = [0.533,  0.088,  np.nan, 0.05, -8.85e-6]  # noqa
+    params["csf"]          = [np.nan, np.nan, 4.2,    1.99, -9e-6]  # noqa
+    params["blood-clot"]   = [1.35,   0.34,   np.nan, 0.2,  -9e-6]  # noqa
+    params["gray-matter"]  = [0.857,  0.376,  np.nan, 0.1,  -9e-6]  # noqa
+    params["white-matter"] = [0.583,  0.382,  np.nan, 0.08, -9e-6]  # noqa
+    params["tumor"]        = [0.926,  0.217,  np.nan, 0.1,  -9e-6]  # noqa
+    # fmt: on
     return params
