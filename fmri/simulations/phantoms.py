@@ -237,3 +237,27 @@ def _mr_relaxation_parameters():
     params["tumor"]        = [0.926,  0.217,  np.nan, 0.1,  -9e-6]  # noqa
     # fmt: on
     return params
+
+
+def idx_in_ellipse(E, shape):
+    """Return array of index who fit in the ellipsoid.
+
+    Parameters
+    ----------
+    E: np.array
+        1d array defining the coordinate and size of the ellipsoid.
+    shape: tuple
+        shape of the complete volume.
+    """
+    L, M, N = shape
+
+    # Initialize array
+    X, Y, Z = np.meshgrid(  # meshgrid does X, Y backwards
+        np.linspace(-1, 1, M), np.linspace(-1, 1, L), np.linspace(-1, 1, N)
+    )
+    xc, yc, zc, a, b, c, _ = *E
+
+    idx = ((X - xc) * ct0 + (Y - yc) * st0) ** 2 / a**2 + (
+        (X - xc) * st0 - (Y - yc) * ct0
+    ) ** 2 / b**2 + (Z - zc) ** 2 / c**2 <= 1
+    return idx
