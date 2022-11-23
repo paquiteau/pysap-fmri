@@ -12,8 +12,12 @@ def flat_matrix_view(fmri_img, ax=None, figsize=None, cmap="gray"):
     if ax is None:
         fig, ax = plt.subplots((1, 1), figsize=figsize)
 
-    ax.imshow(np.reshape(fmri_ssos(abs(fmri_img)),
-              (fmri_img.shape[0], np.prod(fmri_img.shape[1:]))), cmap=cmap)
+    ax.imshow(
+        np.reshape(
+            fmri_ssos(abs(fmri_img)), (fmri_img.shape[0], np.prod(fmri_img.shape[1:]))
+        ),
+        cmap=cmap,
+    )
     return ax
 
 
@@ -22,13 +26,13 @@ def dynamic_img(fmri_img, fps: float = 2, normalize=True):
 
     fmri_img = np.abs(fmri_img)
     if normalize:
-        fmri_img *= (255.0 / fmri_img.max())
+        fmri_img *= 255.0 / fmri_img.max()
 
     fig, ax = plt.subplots()
     obj_show = ax.imshow(np.zeros_like(fmri_img[0, :]))
     for img in fmri_img:
         obj_show.set_data(img)
-        time.sleep(1. / fps)
+        time.sleep(1.0 / fps)
         plt.draw()
         plt.show()
 
@@ -98,11 +102,12 @@ def carrousel(
 def make_movie(filename, array, share_norm=True, fps=2, **kwargs):
     """Make a movie from a n_frames x N x N array."""
     import imageio.v2 as imageio
+
     array_val = abs(array)
 
-    min_val = np.min(array_val, axis = None if share_norm else (1,2))
-    max_val = np.max(array_val, axis = None if share_norm else (1,2))
-    array_val = 255*(array_val - min_val)/(max_val-min_val)
+    min_val = np.min(array_val, axis=None if share_norm else (1, 2))
+    max_val = np.max(array_val, axis=None if share_norm else (1, 2))
+    array_val = 255 * (array_val - min_val) / (max_val - min_val)
     array_val = np.uint8(array_val)
 
     imageio.mimsave(filename, array_val, fps=fps, **kwargs)
