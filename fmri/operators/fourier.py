@@ -4,7 +4,7 @@ import abc
 import numpy as np
 import scipy as sp
 
-from .fft import FFT, StackedFFT
+from .fft import FFT
 from .utils import validate_smaps
 
 MRI_CUFINUFFT_AVAILABLE = True
