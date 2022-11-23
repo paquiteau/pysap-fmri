@@ -7,6 +7,7 @@ from mri.operators.fourier.utils.processing import normalize_frequency_locations
 from sparkling.utils.gradient import get_kspace_loc_from_gradfile
 
 from .acquisition import Acquisition, AcquisitionInfo
+from fmri.utils import DimensionMismatchError
 
 
 def process_raw_data(
@@ -186,7 +187,7 @@ def process_raw_acquisition(
     # shift frequencies.
     #
     if len(shifts) != samples.shape[-1]:
-        raise ValueError("Dimension mismatch")
+        raise DimensionMismatchError()
     phi = np.zeros((samples.shape[:-1]))
     for i in range(samples.shape[-1]):
         phi += samples[..., i] * shifts[i]

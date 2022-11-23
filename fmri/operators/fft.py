@@ -2,7 +2,9 @@
 import numpy as np
 import scipy as sp
 
-from .utils import DimensionMismatchError, validate_mask, validate_smaps
+from fmri.utils import DimensionMismatchError
+
+from .utils import validate_mask, validate_smaps
 
 
 class FFT:
