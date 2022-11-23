@@ -42,9 +42,6 @@ class FFT:
         np.ndarray:
             The mask fourier transform of
         """
-        if self.n_coils > 1 and self.n_coils != img.shape[0]:
-            raise DimensionMismatchError("expected shape: [n_coils, Nx, Ny, Nz]")
-
         if self.n_coils == 1:
             return self.mask * sp.fft.ifftshift(
                 sp.fft.fftn(
@@ -53,7 +50,7 @@ class FFT:
                     workers=self.n_jobs,
                 )
             )
-        axes = tuple(np.arange(1, img.ndim))
+        axes = tuple(np.arange(0, img.ndim))
         res = self.mask * sp.fft.ifftshift(
             sp.fft.fftn(
                 sp.fft.fftshift(img, axes=axes),
@@ -93,3 +90,7 @@ class FFT:
         )
         if self.smaps is not None:
             return np.sum(self.smaps.T.conjugate() * res, axis=0)
+
+    def data_consistency(self, data, obs):
+        """Data consistency projection."""
+        return self.adj_op(self.op(data) - obs)
