@@ -20,7 +20,9 @@ requires = ["setuptools", "wheel"]
 
 [tool.flake8]
 docstring-convention = "numpy"
-ignore = ["D105"]
+# D105: docstring for magic methods
+# E203: space around slice
+ignore = ["D105", "E203"]
 
 [tool.coverage.run]
 omit = ["*tests*"]
