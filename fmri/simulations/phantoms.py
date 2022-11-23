@@ -255,7 +255,10 @@ def idx_in_ellipse(E, shape):
     X, Y, Z = np.meshgrid(  # meshgrid does X, Y backwards
         np.linspace(-1, 1, M), np.linspace(-1, 1, L), np.linspace(-1, 1, N)
     )
-    xc, yc, zc, a, b, c, _ = *E
+    xc, yc, zc, a, b, c, theta = E[:7]
+
+    ct0 = np.cos(theta)
+    st0 = np.sin(theta)
 
     idx = ((X - xc) * ct0 + (Y - yc) * st0) ** 2 / a**2 + (
         (X - xc) * st0 - (Y - yc) * ct0

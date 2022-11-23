@@ -42,21 +42,23 @@ def add_activations(volume_sequence, event_intensities, voxel_locations, TR=1):
     volume_sequence: np.ndarray
         A N_frame x Volume_shape array.
     event_intensities: np.ndarray
-        A N_voxels x N_frames array.
+        A N_frames x N_Voxel array.
         Each row should contains a variable intensity of activation.
         This will be convolve with a canonical HRF.
     voxel_locations: np.ndarray
-        A N_voxel x Volume_dim array.
+        A Volume_dim array.
         Give the locations where to apply the event intensities.
     TR: float
         time between two frames.
     """
-    if volume_sequence.shape[0] != event_intensities.shape[1]:
-        raise DimensionMismatchError()
-    if len(event_intensities) != len(voxel_locations):
-        raise DimensionMismatchError()
-    if voxel_locations.shape[1:] != volume_sequence[1:]:
-        raise DimensionMismatchError()
+    if volume_sequence.shape[0] != event_intensities.shape[0]:
+        raise DimensionMismatchError(
+            "activation pattern does not fully cover time course."
+        )
+    if event_intensities.shape[1] != np.sum(voxel_locations):
+        raise DimensionMismatchError(
+            "there is not enought activation pattern for the given voxels"
+        )
 
     volume_sequence_activated = volume_sequence.copy()
 
@@ -70,7 +72,7 @@ def add_activations(volume_sequence, event_intensities, voxel_locations, TR=1):
         activations[i, :] = sp.signal.convolve(
             event_intensities[i, :],
             hrf,
-            mode="valid",
+            mode="same",
             method="direct",  # don't use fft
         )
 
