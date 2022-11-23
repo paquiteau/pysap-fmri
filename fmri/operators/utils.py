@@ -23,9 +23,11 @@ def validate_smaps(shape, n_coils, smaps=None):
 
 def validate_mask(shape, n_frames=None, mask=None):
     """Raise ValueError if mask does not fit dimensions."""
-    if mask == 1 or mask is None:
+    if hasattr(mask, "__len__"):
+        if n_frames is not None:
+            return validate_shape((*shape, n_frames), mask)
+        else:
+            return validate_shape(shape, mask)
+    elif mask == 1 or mask is None:
         return 1
-
-    if n_frames is None:
-        return validate_shape(shape, mask)
     return validate_shape((*shape, n_frames), mask)

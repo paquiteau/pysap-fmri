@@ -95,15 +95,15 @@ def get_cartesian_mask(
     """
     rng = validate_rng(rng)
 
-    mask = np.zeros((*shape, n_frames))
+    mask = np.zeros((n_frames, *shape))
     if constant:
         mask_loc = get_kspace_slice_loc(shape[-1], center_prop, accel, pdf, rng)
-        mask[..., mask_loc, :] = 1
+        mask[:, mask_loc] = 1
         return mask
 
     for i in range(n_frames):
         mask_loc = get_kspace_slice_loc(shape[-1], center_prop, accel, pdf, rng)
-        mask[..., mask_loc, i] = 1
+        mask[i, mask_loc] = 1
     return mask
 
 
@@ -113,10 +113,10 @@ def get_cartesian_mask(
 def simulate_kspace_data(volume_sequence, n_coils, smaps=None, mask=None):
     """Get the observed kspace_data from reference."""
     fourier_op = CartesianSpaceFourier(
-        volume_sequence.shape[:-1],
+        volume_sequence.shape[1:],
         mask=mask,
         n_coils=n_coils,
-        n_frames=volume_sequence.shape[-1],
+        n_frames=volume_sequence.shape[0],
         smaps=smaps,
     )
 

@@ -98,7 +98,7 @@ class CartesianSpaceFourier(SpaceFourierBase):
         elif mask.shape == shape:
             # common mask for all frames.
             self.mask = [mask] * n_frames
-        elif mask.shape == (*shape, n_frames):
+        elif mask.shape == (n_frames, *shape):
             # custom mask for every frame.
             self.mask = mask
         else:
@@ -106,7 +106,11 @@ class CartesianSpaceFourier(SpaceFourierBase):
 
         for i in range(n_frames):
             self.fourier_ops[i] = FFT(
-                self.shape, mask[i], n_coils=self.n_coils, smaps=smaps, n_jobs=n_jobs
+                self.shape,
+                mask[i, ...],
+                n_coils=self.n_coils,
+                smaps=smaps,
+                n_jobs=n_jobs,
             )
 
 

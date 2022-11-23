@@ -2,41 +2,6 @@
 import numpy as np
 
 
-def _hamming1d(n):
-    """Compute the 1D Hamming window."""
-    return 0.54 - (0.46 * np.cos(np.arange(n) * 2 * np.pi / (n - 1)))
-
-
-def g_factor_map(volume_shape, window_type="hamming"):
-    """
-    Return a g-factor map using a window function.
-
-    Parameters
-    ----------
-    volume_shape: tuple
-        The volume shape, it should be 2 or 3 element tuple.
-    window_type: "hamming"
-        other type not implemented yet.
-    """
-    if window_type != "hamming":
-        raise NotImplementedError
-
-    window = _hamming1d
-
-    w1 = window(volume_shape[0])
-    w2 = window(volume_shape[1])
-    w1 = w1 - min(w1) + 1
-    w2 = w2 - min(w2) + 1
-    g_map = np.outer(w1, w2)
-
-    if len(volume_shape) == 3:
-        w3 = window(volume_shape[2])
-        w3 = w3 - min(w3) + 1
-        g_map = g_map[..., np.newaxis] * w3[np.newaxis, np.newaxis, :]
-
-    return g_map
-
-
 def birdcage_maps(shape, r=1.5, nzz=8, dtype=np.complex64):
     """Simulate birdcage coil sensitivies.
 

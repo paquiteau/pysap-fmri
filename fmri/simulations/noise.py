@@ -65,7 +65,7 @@ def add_temporal_gaussian_noise(array, sigma=1, g_factor_map=None, rng=None):
 
     if np.iscomplex(array).any():
         g_noise += 1j * sigma * rng.standard_normal(shape)
-    return array + (g_noise * g_factor_map[..., None])
+    return array + (g_noise * g_factor_map)
 
 
 def add_temporal_rician_noise(array, scale=1, rng=None):
