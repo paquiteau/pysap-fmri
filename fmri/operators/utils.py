@@ -1,12 +1,6 @@
 """Utilities for fMRI Operators."""
 
-import numpy as np
-
-
-class DimensionMismatchError(ValueError):
-    """Custom Exception for Dimension mismatch."""
-
-    pass
+from frmi.utils import DimensionMismatchError
 
 
 def validate_shape(shape, array):

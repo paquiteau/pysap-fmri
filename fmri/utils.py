@@ -12,5 +12,11 @@ def ssos(img, axis=0):
 
 
 def fmri_ssos(img):
-    """Apply the ssos on the first axis"""
+    """Apply the ssos on the first axis."""
     return ssos(img, axis=0)
+
+
+class DimensionMismatchError(ValueError):
+    """Custom Exception for Dimension mismatch."""
+
+    pass
