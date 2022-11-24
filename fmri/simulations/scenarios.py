@@ -75,6 +75,7 @@ def block_design(
     TR=1,
     block_on=5,
     block_off=5,
+    block_p=0.99,
     noise_level=0,
     gmap=True,
     smaps=True,
@@ -93,9 +94,9 @@ def block_design(
     block_size = block_on + block_off
     block_proba = np.zeros(n_frames)
 
-    for i in range((n_frames // block_size) - 1):
-        block_proba[i * block_size + block_off : (i + 1) * block_size] = 0.9
-        block_proba[i * block_size : i * block_size + block_off] = 0.1
+    for i in range((n_frames // block_size)):
+        block_proba[i * block_size + block_off : (i + 1) * block_size] = block_p
+        block_proba[i * block_size : i * block_size + block_off] = 1 - block_p
 
     voxel_event = np.zeros(shape=(n_frames, np.sum(roi_idx)))
     for idx in range(voxel_event.shape[1]):
