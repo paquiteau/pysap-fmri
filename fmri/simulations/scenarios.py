@@ -8,20 +8,20 @@ from .phantoms import idx_in_ellipse, mr_ellipsoid_parameters, mr_shepp_logan_t2
 from .utils import validate_rng
 
 
-def _base_case(shape, n_coils, n_frames, gmap=True, smaps=True):
+def _base_case(shape, n_coils, n_frames, gmap=True, smaps=True, dtype=np.float32):
     """Return base data for simulation."""
-    phantom = mr_shepp_logan_t2_star(shape, 7)
+    phantom = mr_shepp_logan_t2_star(shape, 7).astype(dtype)
     fphantom = repeat_volume(phantom, n_frames)
 
     if gmap is True:
-        gmap = g_factor_map(shape)
+        gmap = g_factor_map(shape).astype(dtype)
     elif isinstance(gmap, np.ndarray):
         pass
     else:
         gmap = None
 
     if smaps is True:
-        smaps = birdcage_maps((n_coils, *shape))
+        smaps = birdcage_maps((n_coils, *shape)).astype(dtype)
     elif isinstance(smaps, np.ndarray):
         pass
     else:
@@ -60,9 +60,10 @@ def noisy_constant(
     gmap=True,
     smaps=True,
     rng=42,
+    dtype=np.float32,
 ):
     """Return a basic scenario where the serie is constant in time + gaussian noise."""
-    scenario = _base_case(shape, n_coils, n_frames, gmap, smaps)
+    scenario = _base_case(shape, n_coils, n_frames, gmap, smaps, dtype=dtype)
 
     return _add_phantom_noisy(scenario, noise_level, rng)
 
@@ -78,9 +79,10 @@ def block_design(
     gmap=True,
     smaps=True,
     rng=42,
+    dtype=np.float32,
 ):
     """Return simulation phantom where block design have been added."""
-    scenario = _base_case(shape, n_coils, n_frames, gmap, smaps)
+    scenario = _base_case(shape, n_coils, n_frames, gmap, smaps, dtype=dtype)
 
     rng = validate_rng(rng)
     # use a "tumor" ellipse region of the brain,
