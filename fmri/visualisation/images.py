@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ..utils import fmri_ssos
-from .utils import normalize
 
 
 def flat_matrix_view(fmri_img, ax=None, figsize=None, cmap="gray"):
@@ -23,7 +22,6 @@ def flat_matrix_view(fmri_img, ax=None, figsize=None, cmap="gray"):
 
 def dynamic_img(fmri_img, fps: float = 2, normalize=True):
     """Dynamic plot of fmri data."""
-
     fmri_img = np.abs(fmri_img)
     if normalize:
         fmri_img *= 255.0 / fmri_img.max()
@@ -39,7 +37,6 @@ def dynamic_img(fmri_img, fps: float = 2, normalize=True):
 
 def fit_grid(n_tiles):
     """Give the number of row and columns to optimally fit n_tiles."""
-
     n_rows = int(np.sqrt(n_tiles))
     n_cols = n_rows
     while n_rows * n_cols < n_tiles:
