@@ -86,7 +86,8 @@ def mosaic(array, axis=-1, samples=-1, n_rows=-1, n_cols=-1, img_w=3, fig=None):
         hspace=0.01,
         wspace=0.01,
     )
-    axs_2d = gs.subplots()
+    axs_2d = gs.subplots(squeeze=False)
+
     axs = axs_2d.flatten()
     for i, img in enumerate(array_list):
         ax = axs[i]
