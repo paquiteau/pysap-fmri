@@ -106,6 +106,7 @@ def block_design(
     scenario["phantom_static"] = scenario["phantom"][0]
     scenario["roi"] = roi_idx
     scenario["phantom"] = activated_phantom
+    scenario["activations"] = voxel_event
 
     return _add_phantom_noisy(scenario, noise_level, rng)
 
