@@ -88,7 +88,7 @@ def block_design(
     rng = validate_rng(rng)
     # use a "tumor" ellipse region of the brain,
     # they have same T2 and chi parameter as gray-matter
-    E = mr_ellipsoid_parameters()[8]
+    E = mr_ellipsoid_parameters()[10]
     roi_idx = idx_in_ellipse(E, shape)
 
     block_size = block_on + block_off
