@@ -47,7 +47,7 @@ def fit_grid(n_tiles):
     return n_rows, n_cols
 
 
-def mosaic(array, axis=-1, samples=-1, n_rows=-1, n_cols=-1, img_w=3, **kwargs):
+def mosaic(array, axis=-1, samples=-1, n_rows=-1, n_cols=-1, img_w=3, fig=None):
     """Plot a 3D array as a mosaic grid of 2D images."""
     if array.ndim != 3:
         raise ValueError("Only 3D array are supported.")
@@ -79,7 +79,7 @@ def mosaic(array, axis=-1, samples=-1, n_rows=-1, n_cols=-1, img_w=3, **kwargs):
     print(array_list[0].shape)
     aspect_ratio = array_list[0].shape[0] / array_list[0].shape[1]
 
-    fig = plt.figure(figsize=(n_cols * img_w, n_rows * img_w * aspect_ratio))
+    fig = plt.figure(num=fig, figsize=(n_cols * img_w, n_rows * img_w * aspect_ratio))
     gs = fig.add_gridspec(
         n_rows,
         n_cols,
