@@ -33,3 +33,22 @@ def validate_mask(shape, n_frames=None, mask=None):
     elif mask == 1 or mask is None:
         return 1
     return validate_shape((*shape, n_frames), mask)
+
+
+def make_gradient_operator(fourier_op, obs_data):
+    """Return a Gradient operator usable by Modopt."""
+    if hasattr(fourier_op, "data_consistency"):
+        grad_op = GradBasic(
+            op=None,
+            trans_op=None,
+            get_grad=lambda x: fourier_op.data_consistency(x, obs_data),
+            input_data=obs_data,
+        )
+    else:
+        grad_op = GradBasic(
+            op=fourier_op.op,
+            trans_op=fourier_op.adj_op,
+            input_data=obs_data,
+        )
+
+    return grad_op
