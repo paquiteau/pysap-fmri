@@ -38,10 +38,9 @@ class SpaceFourierBase(abc.ABC):
 
     def __init__(self, shape, n_coils=1, n_frames=1, smaps=None):
 
-        validate_smaps(shape, n_coils, smaps)
         self.n_frames = n_frames
         self.n_coils = n_coils
-        self.smaps = smaps
+        self.smaps = validate_smaps(shape, n_coils, smaps)
         self.shape = shape
         self.fourier_ops = [None] * n_frames
 
@@ -56,17 +55,12 @@ class SpaceFourierBase(abc.ABC):
 
     def adj_op(self, adj_data):
         """Adjoint Operator method."""
-        if self.smaps is None:
-            data = np.squeeze(
-                np.zeros(
-                    (self.n_frames, self.n_coils, *self.shape), dtype=adj_data.dtype
-                )
+        data = np.squeeze(
+            np.zeros(
+                (self.n_frames, self.n_coils if self.smaps is None else 1, *self.shape),
+                dtype=adj_data.dtype,
             )
-        else:
-
-            data = np.squeeze(
-                np.zeros((self.n_frames, *self.shape), dtype=adj_data.dtype)
-            )
+        )
 
         for i in range(self.n_frames):
             data[i] = self.fourier_ops[i].adj_op(adj_data[i])
@@ -91,7 +85,7 @@ class CartesianSpaceFourier(SpaceFourierBase):
     """
 
     def __init__(self, shape, mask=None, n_coils=1, n_frames=1, smaps=None, n_jobs=-1):
-        super().__init__(shape, n_coils, n_frames, smaps=None)
+        super().__init__(shape, n_coils, n_frames, smaps=smaps)
 
         if mask is None:
             self.mask = np.ones(n_frames)
@@ -109,7 +103,7 @@ class CartesianSpaceFourier(SpaceFourierBase):
                 self.shape,
                 mask[i, ...],
                 n_coils=self.n_coils,
-                smaps=smaps,
+                smaps=self.smaps,
                 n_jobs=n_jobs,
             )
 
