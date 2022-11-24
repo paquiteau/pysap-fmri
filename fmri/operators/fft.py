@@ -89,8 +89,10 @@ class FFT:
             axes=axes,
         )
         if self.smaps is not None:
-            return np.sum(self.smaps.T.conjugate() * res, axis=0)
+            res2 = np.sum(self.smaps.conjugate() * res, axis=0)
+            return res2
+        return res
 
     def data_consistency(self, data, obs):
-        """Data consistency projection."""
+        """Compute data consistency projection."""
         return self.adj_op(self.op(data) - obs)
