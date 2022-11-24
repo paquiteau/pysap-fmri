@@ -1,6 +1,8 @@
 """Utilities for fMRI Operators."""
 
-from frmi.utils import DimensionMismatchError
+from modopt.opt.gradient import GradBasic
+
+from fmri.utils import DimensionMismatchError
 
 
 def validate_shape(shape, array):
@@ -14,7 +16,7 @@ def validate_shape(shape, array):
 
 def validate_smaps(shape, n_coils, smaps=None):
     """Raise Value Error if smaps does not fit dimensions."""
-    if n_coils == 1:
+    if n_coils == 1 and not smaps:
         return 1
     if smaps is None:
         return None
