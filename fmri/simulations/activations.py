@@ -51,15 +51,6 @@ def add_activations(volume_sequence, event_intensities, voxel_locations, TR=1):
     TR: float
         time between two frames.
     """
-    if volume_sequence.shape[0] != event_intensities.shape[0]:
-        raise DimensionMismatchError(
-            "activation pattern does not fully cover time course."
-        )
-    if event_intensities.shape[1] != np.sum(voxel_locations):
-        raise DimensionMismatchError(
-            "there is not enought activation pattern for the given voxels"
-        )
-
     volume_sequence_activated = volume_sequence.copy()
 
     t = np.arange(0, 32, TR)
@@ -67,15 +58,13 @@ def add_activations(volume_sequence, event_intensities, voxel_locations, TR=1):
 
     activations = np.zeros_like(event_intensities)
 
-    # convolve each timeseries with HRF.
-    for i in range(len(activations)):
-        activations[i, :] = sp.signal.convolve(
-            event_intensities[i, :],
-            hrf,
-            mode="same",
-            method="direct",  # don't use fft
-        )
+    activations = sp.ndimage.convolve1d(
+        event_intensities,
+        hrf[::-1],
+        axis=0,
+        mode="constant",
+    )
 
-    volume_sequence_activated[:, voxel_locations] = activations
+    volume_sequence_activated[:, voxel_locations] *= 1 + (0.05 * activations)
 
     return volume_sequence_activated
