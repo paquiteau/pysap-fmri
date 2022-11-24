@@ -100,6 +100,8 @@ def mosaic(array, axis=-1, samples=-1, n_rows=-1, n_cols=-1, img_w=3, fig=None):
             0.05,
             0.95,
             f"{axis_label[axis]}={step*i}",
+            ha="left",
+            va="top",
             transform=ax.transAxes,
         )
     return fig
