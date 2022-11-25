@@ -30,11 +30,7 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
     https://doi.org/10.1016/j.neuroimage.2017.06.004
     """
 
-    def __init__(self,
-                 fourier_op,
-                 lowrank_thresh=1e-3,
-                 sparse_thresh=1e-3,
-                 roi=None):
+    def __init__(self, fourier_op, lowrank_thresh=1e-3, sparse_thresh=1e-3, roi=None):
         super().__init__(
             fourier_op=fourier_op,
             space_linear_op=Identity(),
@@ -46,9 +42,8 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
             ),
             time_linear_op=TimeFourier(roi=roi),
             time_regularisation=SparseThreshold(
-                Identity(),
-                sparse_thresh,
-                thresh_type="soft"),
+                Identity(), sparse_thresh, thresh_type="soft"
+            ),
         )
         self.sparse_thres = sparse_thresh
         self.lowrank_thres = lowrank_thresh
@@ -74,8 +69,7 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
         S: np.ndarray
             Sparse fMRI estimation
         """
-        M = np.zeros((len(kspace_data), *self.fourier_op.img_shape),
-                     dtype="complex128")
+        M = np.zeros((len(kspace_data), *self.fourier_op.img_shape), dtype="complex128")
 
         L = M.copy()
         S = M.copy()
@@ -104,12 +98,9 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
 class ADMMReconstructor(BaseFMRIReconstructor):
     """Implement the ADMM algorithm to solve fMRI problems."""
 
-    def __init__(self,
-                 fourier_op,
-                 lowrank_thresh=1e-3,
-                 sparse_thresh=1e-3,
-                 roi=None,
-                 smaps=None):
+    def __init__(
+        self, fourier_op, lowrank_thresh=1e-3, sparse_thresh=1e-3, roi=None, smaps=None
+    ):
         super().__init__(
             fourier_op=fourier_op,
             space_linear_op=Identity(),
@@ -121,9 +112,8 @@ class ADMMReconstructor(BaseFMRIReconstructor):
             ),
             time_linear_op=TimeFourier(roi=roi),
             time_regularisation=SparseThreshold(
-                Identity(),
-                sparse_thresh,
-                thresh_type="soft"),
+                Identity(), sparse_thresh, thresh_type="soft"
+            ),
             Smaps=smaps,
         )
 
@@ -134,34 +124,32 @@ class ADMMReconstructor(BaseFMRIReconstructor):
 
     def _optimize_x(self, init_value, obs_value, max_iter=5, **kwargs):
         """Manually perform the FISTA Algorithm on x. Memory Efficient."""
-        alpha = 1.
-        alpha_old = 1.
+        alpha = 1.0
+        alpha_old = 1.0
         x_old = init_value
         for i in range(max_iter):
-            x = x_old - self.step_A * self.fourier_op.data_consistency(
-                x_old,
-                obs_value)
+            x = x_old - self.step_A * self.fourier_op.data_consistency(x_old, obs_value)
             x = self.space_prox_op.op(x, extra_factor=self.step_A)
 
-            alpha = (1. + np.sqrt(1. + 4. * alpha_old ** 2)) / 2
+            alpha = (1.0 + np.sqrt(1.0 + 4.0 * alpha_old**2)) / 2
             x = x_old + ((alpha_old - 1) / alpha) * (x - x_old)
             x_old = x.copy()
         return x
 
     def _optimize_z(self, init_value, obs_value, max_iter=5, **kwargs):
         """Manually perform the FISTA Algorithm on z. Memory Efficient."""
-        alpha = 1.
-        alpha_old = 1.
+        alpha = 1.0
+        alpha_old = 1.0
         x_old = init_value
         for i in range(max_iter):
             x = x_old - self.step_B * self.time_linear_op.adj_op(
                 self.fourier_op.data_consistency(
-                    self.time_linear_op.op(x_old),
-                    obs_value)
+                    self.time_linear_op.op(x_old), obs_value
+                )
             )
             x = self.space_prox_op.op(x, extra_factor=self.step_B)
 
-            alpha = (1. + np.sqrt(1. + 4. * alpha_old ** 2)) / 2
+            alpha = (1.0 + np.sqrt(1.0 + 4.0 * alpha_old**2)) / 2
             x = x_old + ((alpha_old - 1) / alpha) * (x - x_old)
             x_old = x.copy()
         return x
@@ -193,8 +181,7 @@ class ADMMReconstructor(BaseFMRIReconstructor):
         BaseFMRIReconstructor: parent class
 
         """
-        x = np.zeros((len(kspace_data), *self.fourier_op.img_shape),
-                     dtype="complex64")
+        x = np.zeros((len(kspace_data), *self.fourier_op.img_shape), dtype="complex64")
 
         self.step_A = 1.0
         self.step_B = 1.0
@@ -210,7 +197,8 @@ class ADMMReconstructor(BaseFMRIReconstructor):
             solver2=self._optimize_z,
             max_iter1=max_subiter,
             max_iter2=max_subiter,
-            **kwargs)
+            **kwargs,
+        )
 
         ADMM.iterate(max_iter)
 
