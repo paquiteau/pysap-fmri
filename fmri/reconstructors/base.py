@@ -32,28 +32,37 @@ class BaseFMRIReconstructor:
         Determines in which framework the problem will be solve.
     """
 
-    def __init__(self, fourier_op, space_linear_op, space_regularisation=None,
-                 time_linear_op=None, time_regularisation=None, verbose=0,):
+    def __init__(
+        self,
+        fourier_op,
+        space_linear_op,
+        space_prox_op=None,
+        time_linear_op=None,
+        time_prox_op=None,
+        verbose=0,
+    ):
         self.fourier_op = fourier_op
         self.space_linear_op = space_linear_op or Identity
         self.time_linear_op = time_linear_op or Identity
         self.verbose = verbose
 
-        if space_regularisation is None:
+        if space_prox_op is None:
             warnings.warn(
                 "The in space regulariser is not set. Setting to identity. "
-                "Note that optimization is just a gradient descent in space")
+                "Note that optimization is just a gradient descent in space"
+            )
             self.space_prox_op = Identity()
         else:
-            self.space_prox_op = space_regularisation
+            self.space_prox_op = space_prox_op
 
-        if time_regularisation is None:
+        if time_prox_op is None:
             warnings.warn(
                 "The in-time regularizer is not set. Setting to identity. "
-                "Note that frame will be reconstruct independently.")
+                "Note that frame will be reconstruct independently."
+            )
             self.time_prox_op = Identity()
         else:
-            self.time_prox_op = time_regularisation
+            self.time_prox_op = time_prox_op
 
     def reconstruct(self, *args, **kwargs):
         """Launch reconstruction."""
