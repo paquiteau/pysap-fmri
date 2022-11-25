@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Singular Value Threshold oerator"""
+"""Singular Value Threshold operator."""
 
 import numpy as np
 import scipy as sp
@@ -46,7 +46,7 @@ class SingularValueThreshold(ProximityParent):
             s = min(s + self._incre, min(data.shape) - 2)
         Sigma = self.threshold_op.op(Sigma, extra_factor=s_val)
         self.rank = np.count_nonzero(Sigma)
-        return (U[:, -self.rank:] * Sigma[-self.rank:]) @ VT[-self.rank:, :]
+        return (U[:, -self.rank :] * Sigma[-self.rank :]) @ VT[-self.rank :, :]
 
 
 class FlattenSVT(SingularValueThreshold):
