@@ -5,12 +5,11 @@ this reconstructor consider the time frames (nostly) independently.
 
 """
 import numpy as np
-from mri.operators.gradient.gradient import (GradAnalysis,
-                                             GradSynthesis)
+from mri.operators.gradient.gradient import GradAnalysis, GradSynthesis
+from tqdm.auto import tqdm, trange
 
 from .base import BaseFMRIReconstructor
 from .utils import OPTIMIZERS, initialize_opt
-from tqdm.auto import trange, tqdm
 
 
 class SequentialFMRIReconstructor(BaseFMRIReconstructor):
@@ -31,55 +30,63 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
 
     def get_grad_op(self, fourier_op, **kwargs):
         """Create gradient operator specific to the problem."""
-        if self.grad_formulation == 'analysis':
-            return GradAnalysis(fourier_op=fourier_op,
-                                verbose=self.verbose,
-                                **kwargs)
-        if self.grad_formulation == 'synthesis':
-            return GradSynthesis(linear_op=self.space_linear_op,
-                                 fourier_op=fourier_op,
-                                 verbose=self.verbose,
-                                 **kwargs)
+        if self.grad_formulation == "analysis":
+            return GradAnalysis(fourier_op=fourier_op, verbose=self.verbose, **kwargs)
+        if self.grad_formulation == "synthesis":
+            return GradSynthesis(
+                linear_op=self.space_linear_op,
+                fourier_op=fourier_op,
+                verbose=self.verbose,
+                **kwargs
+            )
         raise ValueError("Unknown Gradient formuation")
 
-    def reconstruct(self, kspace_data, x_init=None, max_iter_per_frame=15,
-                    grad_kwargs=None,
-                    warm_x=True):
+    def reconstruct(
+        self,
+        kspace_data,
+        x_init=None,
+        max_iter_per_frame=15,
+        grad_kwargs=None,
+        warm_x=True,
+    ):
         """Reconstruct using sequential method."""
         grad_kwargs = {} if grad_kwargs is None else grad_kwargs
         if x_init is None:
-            x_init = np.zeros(self.fourier_op.fourier_ops[0].shape,
-                              dtype="complex64")
+            x_init = np.zeros(self.fourier_op.fourier_ops[0].shape, dtype="complex64")
         final_estimate = np.zeros(
             (len(kspace_data), *self.fourier_op.fourier_ops[0].shape),
-            dtype=x_init.dtype)
+            dtype=x_init.dtype,
+        )
 
         if self.fourier_op.n_coils != kspace_data.shape[1]:
-            raise ValueError("The kspace data should have shape"
-                             "N_frame x N_coils x N_samples. "
-                             "Also, the number of coils should match.")
+            raise ValueError(
+                "The kspace data should have shape"
+                "N_frame x N_coils x N_samples. "
+                "Also, the number of coils should match."
+            )
 
         next_init = x_init
-        progbar_main=trange(len(kspace_data))
+        progbar_main = trange(len(kspace_data))
         progbar = tqdm(total=max_iter_per_frame)
         for i in progbar_main:
             # only recreate gradient if the trajectory change.
             grad_op = self.get_grad_op(
-                self.fourier_op.fourier_ops[i],
-                input_data_writeable=True,
-                **grad_kwargs)
+                self.fourier_op.fourier_ops[i], input_data_writeable=True, **grad_kwargs
+            )
 
             # at each step a new frame is loaded
             grad_op._obs_data = kspace_data[i, ...]
             # reset Smaps and optimizer if required.
-            opt = initialize_opt(opt_name=self.opt_name,
-                                     grad_op=grad_op,
-                                     linear_op=self.space_linear_op,
-                                     prox_op=self.space_prox_op,
-                                     x_init=next_init,
-                                     synthesis_init=False,
-                                     opt_kwargs={"cost": None},
-                                     metric_kwargs={})
+            opt = initialize_opt(
+                opt_name=self.opt_name,
+                grad_op=grad_op,
+                linear_op=self.space_linear_op,
+                prox_op=self.space_prox_op,
+                x_init=next_init,
+                synthesis_init=False,
+                opt_kwargs={"cost": None},
+                metric_kwargs={},
+            )
             # if no reset, the internal state is kept.
             # (e.g. dual variable, dynamic step size)
             if i == 0 and warm_x:
