@@ -37,7 +37,7 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
                 linear_op=self.space_linear_op,
                 fourier_op=fourier_op,
                 verbose=self.verbose,
-                **kwargs
+                **kwargs,
             )
         raise ValueError("Unknown Gradient formuation")
 
@@ -57,8 +57,7 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
             (len(kspace_data), *self.fourier_op.fourier_ops[0].shape),
             dtype=x_init.dtype,
         )
-
-        if self.fourier_op.n_coils != kspace_data.shape[1]:
+        if (nc := self.fourier_op.n_coils > 1) and nc != kspace_data.shape[1]:
             raise ValueError(
                 "The kspace data should have shape"
                 "N_frame x N_coils x N_samples. "
