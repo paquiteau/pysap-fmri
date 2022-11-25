@@ -33,22 +33,22 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
         super().__init__(
             fourier_op=fourier_op,
             space_linear_op=Identity(),
-            space_regularisation=FlattenSVT(
+            space_prox_op=FlattenSVT(
                 threshold=lowrank_thresh,
                 initial_rank=5,
                 thresh_type="soft",
                 roi=roi,
             ),
             time_linear_op=TimeFourier(roi=roi),
-            time_regularisation=SparseThreshold(
-                Identity(), sparse_thresh, thresh_type="soft"
-            ),
+            time_prox_op=SparseThreshold(Identity(), sparse_thresh, thresh_type="soft"),
         )
         self.sparse_thres = sparse_thresh
         self.lowrank_thres = lowrank_thresh
 
     def reconstruct(self, kspace_data, max_iter=30, eps=1e-5):
         """Perform the reconstruction.
+
+        Relies on an custom iterative algorithm and do not use Modopt implementation.
 
         Parameters
         ----------
