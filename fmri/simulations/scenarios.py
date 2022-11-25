@@ -33,13 +33,14 @@ def _base_case(shape, n_coils, n_frames, gmap=True, smaps=True, dtype=np.float32
     }
 
 
-def _add_phantom_noisy(scenario, noise_level, rng, type="gaussian"):
+def _add_phantom_noisy(scenario, snr, rng, type="gaussian"):
 
-    if noise_level > 0:
+    if snr > 0:
+        energy = np.max(scenario["phantom"])
         if type == "gaussian":
             noisy_phantom = add_temporal_gaussian_noise(
                 scenario["phantom"],
-                sigma=noise_level,
+                sigma=energy / snr,
                 g_factor_map=scenario["gmap"],
                 rng=rng,
             )
@@ -56,7 +57,7 @@ def noisy_constant(
     shape,
     n_coils,
     n_frames,
-    noise_level,
+    snr,
     gmap=True,
     smaps=True,
     rng=42,
@@ -65,7 +66,7 @@ def noisy_constant(
     """Return a basic scenario where the serie is constant in time + gaussian noise."""
     scenario = _base_case(shape, n_coils, n_frames, gmap, smaps, dtype=dtype)
 
-    return _add_phantom_noisy(scenario, noise_level, rng)
+    return _add_phantom_noisy(scenario, snr, rng)
 
 
 def block_design(
@@ -76,7 +77,7 @@ def block_design(
     block_on=5,
     block_off=5,
     block_p=0.99,
-    noise_level=0,
+    snr=0,
     gmap=True,
     smaps=True,
     rng=42,
@@ -108,7 +109,7 @@ def block_design(
     scenario["phantom"] = activated_phantom
     scenario["activations"] = voxel_event
 
-    return _add_phantom_noisy(scenario, noise_level, rng)
+    return _add_phantom_noisy(scenario, snr, rng)
 
 
 # TODO: add scenario with block design activation
