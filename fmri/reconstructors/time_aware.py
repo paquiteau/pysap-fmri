@@ -2,8 +2,7 @@
 
 import numpy as np
 import tqdm
-from modopt.opt.algorithms import FastADMM
-from modopt.opt.linear import Identity, LinearParent
+from modopt.opt.linear import Identity
 from modopt.opt.proximity import SparseThreshold
 
 from ..operators.fourier import TimeFourier
@@ -91,120 +90,5 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
                 print(f"convergence reached at step {itr}")
                 break
             M_old = M.copy()
-
-        return M, L, S
-
-
-class ADMMReconstructor(BaseFMRIReconstructor):
-    """Implement the ADMM algorithm to solve fMRI problems."""
-
-    def __init__(
-        self, fourier_op, lowrank_thresh=1e-3, sparse_thresh=1e-3, roi=None, smaps=None
-    ):
-        super().__init__(
-            fourier_op=fourier_op,
-            space_linear_op=Identity(),
-            space_regularisation=FlattenSVT(
-                threshold=lowrank_thresh,
-                initial_rank=5,
-                thresh_type="soft",
-                roi=roi,
-            ),
-            time_linear_op=TimeFourier(roi=roi),
-            time_regularisation=SparseThreshold(
-                Identity(), sparse_thresh, thresh_type="soft"
-            ),
-            Smaps=smaps,
-        )
-
-        self.fourierSpaceTime_op = LinearParent(
-            op=lambda x: self.fourier_op.op(self.time_linear_op.adj_op(x)),
-            adj_op=lambda x: self.time_linear_op.op(self.fourier_op.adj_op(x)),
-        )
-
-    def _optimize_x(self, init_value, obs_value, max_iter=5, **kwargs):
-        """Manually perform the FISTA Algorithm on x. Memory Efficient."""
-        alpha = 1.0
-        alpha_old = 1.0
-        x_old = init_value
-        for i in range(max_iter):
-            x = x_old - self.step_A * self.fourier_op.data_consistency(x_old, obs_value)
-            x = self.space_prox_op.op(x, extra_factor=self.step_A)
-
-            alpha = (1.0 + np.sqrt(1.0 + 4.0 * alpha_old**2)) / 2
-            x = x_old + ((alpha_old - 1) / alpha) * (x - x_old)
-            x_old = x.copy()
-        return x
-
-    def _optimize_z(self, init_value, obs_value, max_iter=5, **kwargs):
-        """Manually perform the FISTA Algorithm on z. Memory Efficient."""
-        alpha = 1.0
-        alpha_old = 1.0
-        x_old = init_value
-        for i in range(max_iter):
-            x = x_old - self.step_B * self.time_linear_op.adj_op(
-                self.fourier_op.data_consistency(
-                    self.time_linear_op.op(x_old), obs_value
-                )
-            )
-            x = self.space_prox_op.op(x, extra_factor=self.step_B)
-
-            alpha = (1.0 + np.sqrt(1.0 + 4.0 * alpha_old**2)) / 2
-            x = x_old + ((alpha_old - 1) / alpha) * (x - x_old)
-            x_old = x.copy()
-        return x
-
-    def reconstruct(self, kspace_data, max_iter=15, max_subiter=5, **kwargs):
-        """Perform the reconstruction.
-
-        Parameters
-        ----------
-        kspace_data: array_like
-            The kspace data of the fMRI acquisition.
-        max_iter: int, optional
-            maximum number of iteration
-        kwargs: dict
-            Extra arguments for the initialisation of ADMM
-
-        Returns
-        -------
-        M: array_like
-            final estimation
-        L: array_like
-            low rank estimation
-        S: array_like
-            time-frequency sparse esimation
-
-        See Also
-        --------
-        modopt.opt.algorithms.FastADMM
-        BaseFMRIReconstructor: parent class
-
-        """
-        x = np.zeros((len(kspace_data), *self.fourier_op.img_shape), dtype="complex64")
-
-        self.step_A = 1.0
-        self.step_B = 1.0
-
-        ADMM = FastADMM(
-            x=x,
-            z=self.time_linear_op.op(x),
-            u=np.zeros_like(kspace_data),
-            A=self.fourier_op,
-            B=self.fourierSpaceTime_op,
-            c=kspace_data,
-            solver1=self._optimize_x,
-            solver2=self._optimize_z,
-            max_iter1=max_subiter,
-            max_iter2=max_subiter,
-            **kwargs,
-        )
-
-        ADMM.iterate(max_iter)
-
-        L = ADMM.x_final
-        S = self.time_linear_op.adj_op(ADMM.z_final)
-
-        M = L + S
 
         return M, L, S
