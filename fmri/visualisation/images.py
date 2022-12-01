@@ -47,8 +47,10 @@ def _fit_grid(n_tiles):
     return n_rows, n_cols
 
 
-def mosaic(array, axis=-1, samples=-1, n_rows=-1, n_cols=-1, img_w=3, fig=None):
     """Plot a 3D array as a mosaic grid of 2D images."""
+def mosaic(
+    array, axis=-1, samples=-1, n_rows=-1, n_cols=-1, img_w=3, fig=None, cmap="gray"
+):
     if array.ndim != 3:
         raise ValueError("Only 3D array are supported.")
     if axis < 0:
@@ -100,9 +102,9 @@ def mosaic(array, axis=-1, samples=-1, n_rows=-1, n_cols=-1, img_w=3, fig=None):
         ax = axs[i]
         ax.axis("off")
         if np.any(np.iscomplex(img)):
-            ax.imshow(abs(img))
+            ax.imshow(abs(img), cmap=cmap)
         else:
-            ax.imshow(img)
+            ax.imshow(img, cmap=cmap)
         ax.text(
             0.05,
             0.95,
