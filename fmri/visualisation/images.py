@@ -47,10 +47,41 @@ def _fit_grid(n_tiles):
     return n_rows, n_cols
 
 
-    """Plot a 3D array as a mosaic grid of 2D images."""
 def mosaic(
     array, axis=-1, samples=-1, n_rows=-1, n_cols=-1, img_w=3, fig=None, cmap="gray"
 ):
+    """Plot a 3D array as a tiled grid of 2D images.
+
+    Parameters
+    ----------
+    array: numpy.ndarray
+        A 3D array
+    axis: int
+        the axis on which to performs the sampling
+    samples: int or float, default: -1
+        If int, represent the number of equaly sample to take along axis.
+        If float, must be in (0, 1], and represent the sampling rate.
+    n_rows int, default=-1
+    n_cols int, default=-1
+    img_w: int
+        size in inches of a sample tile.
+    fig: Figure handle, default None
+        If None, a new figure is created.
+    cmap: matplotlib colormap.
+        color map to use.
+
+    Returns
+    -------
+    matplotlib.pyplot.figure
+        The figure handle
+
+    Raises
+    ------
+    ValueError
+        If array is not 3D
+    ValueError
+        If both n_rows and n_cols are specified and cannot fit the samples.
+    """
     if array.ndim != 3:
         raise ValueError("Only 3D array are supported.")
     if axis < 0:
