@@ -39,8 +39,8 @@ def make_gradient_operator(fourier_op, obs_data):
     """Return a Gradient operator usable by Modopt."""
     if hasattr(fourier_op, "data_consistency"):
         grad_op = GradBasic(
-            op=None,
-            trans_op=None,
+            op=fourier_op.op,
+            trans_op=fourier_op.adj_op,
             get_grad=lambda x: fourier_op.data_consistency(x, obs_data),
             input_data=obs_data,
         )
