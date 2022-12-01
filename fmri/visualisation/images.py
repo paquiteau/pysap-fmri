@@ -35,7 +35,7 @@ def dynamic_img(fmri_img, fps: float = 2, normalize=True):
         plt.show()
 
 
-def fit_grid(n_tiles):
+def _fit_grid(n_tiles):
     """Give the number of row and columns to optimally fit n_tiles."""
     n_rows = int(np.sqrt(n_tiles))
     n_cols = n_rows
@@ -75,8 +75,10 @@ def mosaic(array, axis=-1, samples=-1, n_rows=-1, n_cols=-1, img_w=3, fig=None):
         while n_rows * n_cols < n_samples:
             n_cols += 1
     elif n_rows == -1 and n_cols == -1:
-        n_rows, n_cols = fit_grid(n_samples)
-    print(array_list[0].shape)
+        n_rows, n_cols = _fit_grid(n_samples)
+    elif n_rows != -1 and n_cols != -1 and n_rows * n_cols < n_samples:
+        raise ValueError("The grid is not big enough to fit all samples.")
+
     aspect_ratio = array_list[0].shape[0] / array_list[0].shape[1]
 
     fig = plt.figure(num=fig, figsize=(n_cols * img_w, n_rows * img_w * aspect_ratio))
