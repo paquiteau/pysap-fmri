@@ -118,6 +118,7 @@ def mr_shepp_logan(N, E=None, B0=3, T2star=False, zlims=(-1, 1)):
     T1s = np.zeros((L, M, N))
     T2s = np.zeros((L, M, N))
     M0s = np.zeros((L, M, N))
+    labelled = np.zeros((L, M, N))
 
     # We'll need the gyromagnetic ratio if returning T2star values
     if T2star:
@@ -151,7 +152,8 @@ def mr_shepp_logan(N, E=None, B0=3, T2star=False, zlims=(-1, 1)):
         else:
             T1s[idx] += sgn[ii] * T1[ii]
 
-    return (M0s, T1s, T2s)
+        labelled[idx] = ii
+    return (M0s, T1s, T2s, labelled)
 
 
 def mr_ellipsoid_parameters():
