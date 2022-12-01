@@ -60,11 +60,16 @@ def mosaic(array, axis=-1, samples=-1, n_rows=-1, n_cols=-1, img_w=3, fig=None):
     if samples == -1:
         samples_loc = np.arange(array.shape[axis])
         step = 1
-    else:
+    elif isinstance(samples, int):
         step = array.shape[axis] // (samples + 1)
 
         samples_loc = np.arange(1, samples + 1) * step
-
+    elif isinstance(samples, float) and (0 < samples <= 1):
+        n_samples = int(array.shape[axis] * samples)
+        step = array.shape[axis] // n_samples
+        samples_loc = np.arange(0, n_samples) * step
+    else:
+        raise ValueError("Unsupported value for sample")
     n_samples = len(samples_loc)
     array_list = [array[(*slicer[:axis], s, *slicer[axis + 1 :])] for s in samples_loc]
 
