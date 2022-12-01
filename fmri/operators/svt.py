@@ -48,6 +48,13 @@ class SingularValueThreshold(ProximityParent):
         self.rank = np.count_nonzero(Sigma)
         return (U[:, -self.rank :] * Sigma[-self.rank :]) @ VT[-self.rank :, :]
 
+    def cost(self, data):
+        """Compute cost of low rank operator.
+
+        This is the nuclear norm of data.
+        """
+        return np.sum(np.abs(sp.linalg.svd(data, compute_uv=False)))
+
 
 class FlattenSVT(SingularValueThreshold):
     """Same as SingularValueThreshold but flatten spatial dimension."""
@@ -73,3 +80,7 @@ class FlattenSVT(SingularValueThreshold):
             )
 
             return np.reshape(results, data.shape)
+
+    def cost(self, data):
+        """Compute cost."""
+        return super().cost(np.reshape(data, (data.shape[0], -1)))
