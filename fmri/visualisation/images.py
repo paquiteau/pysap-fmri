@@ -112,6 +112,7 @@ def mosaic(
             ha="left",
             va="top",
             transform=ax.transAxes,
+            bbox=dict(boxstyle="square, pad=0", fc="white", ec="none"),
         )
     return fig
 
