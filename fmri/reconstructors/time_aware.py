@@ -24,14 +24,21 @@ class LowRankFMRIReconstructor(BaseFMRIReconstructor):
     roi: numpy.ndarray
     """
 
-    def __init__(self, fourier_op, lowrank_thresh, lipschitz_cst=None, roi=None):
+    def __init__(
+        self,
+        fourier_op,
+        lowrank_thresh,
+        thresh_type="hard-rel",
+        lipschitz_cst=None,
+        roi=None,
+    ):
         super().__init__(
             fourier_op=fourier_op,
             space_linear_op=Identity(),
             space_prox_op=FlattenSVT(
                 threshold=lowrank_thresh,
                 initial_rank=5,
-                thresh_type="soft",
+                thresh_type=thresh_type,
                 roi=roi,
             ),
         )
@@ -87,21 +94,14 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
     https://doi.org/10.1016/j.neuroimage.2017.06.004
     """
 
-    def __init__(self, fourier_op, lowrank_thresh=1e-3, sparse_thresh=1e-3, roi=None):
+    def __init__(self, fourier_op, lowrank_op, sparse_op, roi=None):
         super().__init__(
             fourier_op=fourier_op,
             space_linear_op=Identity(),
-            space_prox_op=FlattenSVT(
-                threshold=lowrank_thresh,
-                initial_rank=5,
-                thresh_type="soft",
-                roi=roi,
-            ),
+            space_prox_op=lowrank_op,
             time_linear_op=TimeFourier(roi=roi),
-            time_prox_op=SparseThreshold(Identity(), sparse_thresh, thresh_type="soft"),
+            time_prox_op=sparse_op,
         )
-        self.sparse_thres = sparse_thresh
-        self.lowrank_thres = lowrank_thresh
 
     def reconstruct(self, kspace_data, max_iter=30, eps=1e-5):
         """Perform the reconstruction.
@@ -126,27 +126,36 @@ class LowRankPlusSparseFMRIReconstructor(BaseFMRIReconstructor):
         S: np.ndarray
             Sparse fMRI estimation
         """
-        M = np.zeros((len(kspace_data), *self.fourier_op.img_shape), dtype="complex128")
+        M_new = np.zeros((len(kspace_data), *self.fourier_op.shape), dtype="complex128")
 
-        L = M.copy()
-        S = M.copy()
-        tmp = M.copy()
+        L_new = M_new.copy()
+        L_old = M_new.copy()
+        S_new = M_new.copy()
+        S_old = M_new.copy()
+        tmp = M_new.copy()
         M_old = self.fourier_op.adj_op(kspace_data)
+
+        grad_op = make_gradient_operator(self.fourier_op, kspace_data)
 
         for itr in tqdm.tqdm(range(max_iter)):
             # singular value soft thresholding
-            tmp = M_old - S
-            L = self.space_prox_op.op(tmp)
+            tmp = M_old - S_old
+            L_new = self.space_prox_op.op(tmp)
             # Soft thresholding in the time sparsifying domain
-            S = self.time_linear_op.adj_op(
+            tmp = M_old - L_old
+            S_new = self.time_linear_op.adj_op(
                 self.time_prox_op.op(self.time_linear_op.op(tmp))
             )
             # Data consistency: substract residual
-            tmp = L + S
-            M = tmp - self.fourier_op.data_consistency(tmp, kspace_data)
-            if np.linalg.norm(M - M_old) <= eps * np.linalg.norm(M_old):
+            tmp = L_new + S_new
+            grad_op.get_grad(tmp)
+            M_new = tmp - grad_op.grad
+
+            if np.linalg.norm(M_new - M_old) <= eps * np.linalg.norm(M_old):
                 print(f"convergence reached at step {itr}")
                 break
-            M_old = M.copy()
+            M_old = M_new.copy()
+            S_old = S_new.copy()
+            L_old = L_new.copy()
 
-        return M, L, S
+        return M_new, L_new, S_new
