@@ -79,11 +79,29 @@ class SingularValueThreshold(ProximityParent):
         return np.sum(np.abs(sp.linalg.svd(data, compute_uv=False)))
 
 
+class RankConstraint(ProximityParent):
+    def __init__(self, rank=1):
+        self._rank = rank
+
+    def op(self, data):
+        max_rank = min(data.shape) - 2
+        compute_rank = min(self._rank, max_rank)
+        U, S, V = sp.sparse.linalg.svds(data, k=compute_rank)
+        return (U[:, -self._rank :] * S[-self._rank :]) @ V[-self._rank :, :]
+
+    def cost(self, data):
+        """Compute cost of low rank operator.
+
+        This is the nuclear norm of data.
+        """
+        return np.sum(np.abs(sp.linalg.svds(data, compute_uv=False, k=self._rank)))
+
+
 class FlattenSVT(SingularValueThreshold):
     """Same as SingularValueThreshold but flatten spatial dimension."""
 
-    def __init__(self, threshold, initial_rank, roi=None, thresh_type="soft"):
-        super().__init__(threshold, initial_rank, thresh_type="soft")
+    def __init__(self, threshold, initial_rank, roi=None, thresh_type="hard-rel"):
+        super().__init__(threshold, initial_rank, thresh_type=thresh_type)
         self.roi = roi
 
     def op(self, data, roi=None, extra_factor=1.0):
@@ -101,9 +119,31 @@ class FlattenSVT(SingularValueThreshold):
             results = super().op(
                 np.reshape(data, (shape[0], np.prod(shape[1:]))), extra_factor
             )
-
-            return np.reshape(results, data.shape)
+            results = np.reshape(results, data.shape)
+            return results
 
     def cost(self, data):
         """Compute cost."""
         return super().cost(np.reshape(data, (data.shape[0], -1)))
+
+
+class FlattenRankConstraint(RankConstraint):
+    def __init__(self, rank, roi=None):
+        super().__init__(rank)
+        self.roi = roi
+
+    def op(self, data, roi=None):
+        """Rank Constraint on flatten array."""
+        roi = roi or self.roi
+        if roi is not None:
+            roi_data = data[:, roi]
+            roi_results = super().op(roi_data)
+            results = np.zeros_like(data)
+            results[:, roi] = roi_results
+            return results
+
+        else:
+            shape = data.shape
+            results = super().op(np.reshape(data, (shape[0], -1)))
+            results = np.reshape(results, data.shape)
+            return results
