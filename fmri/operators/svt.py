@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """Singular Value Threshold operator."""
+import warnings
 
 import numpy as np
 import scipy as sp
 from modopt.opt.linear import Identity
-from modopt.opt.proximity import ProximityParent, SparseThreshold
+from modopt.opt.proximity import ProximityParent
+from modopt.signal.noise import thresh
 
 
 class SingularValueThreshold(ProximityParent):
@@ -12,14 +14,24 @@ class SingularValueThreshold(ProximityParent):
 
     This is the proximity operator solving:
     .. math:: arg min \tau||x||_* + 1/2||x||_F
+
+    Parameters
+    ----------
+    threshold: float
+        Threshold value
+    thresh_type: str
+        Must be in  {"soft", "hard", "soft-rel", "hard-rel"}
+        If contains "-rel", the threshold value is considered relative to the
+        maximal singular value.
+    initial_rank: int
+        Initial rank to use for the SVD.
     """
 
-    def __init__(self, threshold, initial_rank, thresh_type="soft"):
-        self.threshold = threshold
-        self.rank = initial_rank
-        self.threshold_op = SparseThreshold(
-            linear=Identity(), weights=threshold, thresh_type=thresh_type
-        )
+    def __init__(self, threshold, initial_rank=1, thresh_type="hard"):
+        self._threshold = threshold
+        self._rank = initial_rank
+        self._threshold_type = thresh_type.split("-")[0]
+        self._rel_thresh = thresh_type.endswith("-rel")
         self._incre = 5
 
     def op(self, data, extra_factor=1.0):
@@ -28,25 +40,36 @@ class SingularValueThreshold(ProximityParent):
         Parameters
         ----------
         data: ndarray
+            A MxN array.
 
         Returns
         -------
         data_thresholded: ndarray
             The data with thresholded singular values.
         """
-        OK = False
-        s = min(self.rank + 1, min(data.shape) - 2)
-        u, s_val, v = sp.sparse.linalg.svds(data, k=1)
-        # use a relative threshold/
-        thresh = s_val[0] * self.threshold
-        while not OK:
-            # Sigma are the singular values, sorted in increasing order.
-            U, Sigma, VT = sp.sparse.linalg.svds(data, k=s)
-            OK = Sigma[0] <= thresh or s == min(data.shape) - 2
-            s = min(s + self._incre, min(data.shape) - 2)
-        Sigma = self.threshold_op.op(Sigma, extra_factor=s_val)
-        self.rank = np.count_nonzero(Sigma)
-        return (U[:, -self.rank :] * Sigma[-self.rank :]) @ VT[-self.rank :, :]
+        max_rank = min(data.shape) - 2
+        if self._rank > max_rank:
+            warnings.warn("initial rank bigger than maximal possible one, updating.")
+
+        compute_rank = min(self._rank + 1, max_rank)
+        # Singular value are  in increasing order !
+        U, S, V = sp.sparse.linalg.svds(data, k=compute_rank)
+
+        if self._rel_thresh:
+            thresh_val = self._threshold * S[-1]
+        else:
+            thresh_val = self._threshold
+        # increase the computational rank until we found a singular value small enought.
+        while (
+            thresh(S[0], thresh_val, self._threshold_type) > 0
+            and compute_rank < max_rank
+        ):
+            compute_rank = min(compute_rank + self._incre, max_rank)
+            U, S, V = sp.sparse.linalg.svds(data, k=compute_rank)
+
+        S = thresh(S, thresh_val, self._threshold_type)
+        self._rank = np.count_nonzero(S)
+        return (U[:, -self._rank :] * S[-self._rank :]) @ V[-self._rank :, :]
 
     def cost(self, data):
         """Compute cost of low rank operator.
