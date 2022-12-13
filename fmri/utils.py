@@ -1,7 +1,8 @@
 """Utils functions for fMRI data."""
-import numpy as np
 import os
 
+import numpy as np
+from numpy.random import Generator, default_rng
 
 MAX_CPU_CORE = len(os.sched_getaffinity(0))
 
@@ -20,3 +21,15 @@ class DimensionMismatchError(ValueError):
     """Custom Exception for Dimension mismatch."""
 
     pass
+
+
+def validate_rng(rng=None):
+    """Validate Random Number Generator."""
+    if isinstance(rng, int):
+        return default_rng(rng)
+    elif rng is None:
+        return default_rng()
+    elif isinstance(rng, Generator):
+        return rng
+    else:
+        raise ValueError("rng shoud be a numpy Generator, None or an integer seed.")
