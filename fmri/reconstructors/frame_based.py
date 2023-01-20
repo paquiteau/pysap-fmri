@@ -27,6 +27,7 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
         super().__init__(*args, **kwargs)
         self.opt_name = optimizer
         self.grad_formulation = OPTIMIZERS[optimizer]
+        self.progbar_disable = progbar_disable
 
     def get_grad_op(self, fourier_op, **kwargs):
         """Create gradient operator specific to the problem."""
@@ -65,8 +66,8 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
             )
 
         next_init = x_init
-        progbar_main = trange(len(kspace_data), disable=progbar_disable)
-        progbar = tqdm(total=max_iter_per_frame, disable=progbar_disable)
+        progbar_main = trange(len(kspace_data), disable=self.progbar_disable)
+        progbar = tqdm(total=max_iter_per_frame, disable=self.progbar_disable)
         for i in progbar_main:
             # only recreate gradient if the trajectory change.
             grad_op = self.get_grad_op(
