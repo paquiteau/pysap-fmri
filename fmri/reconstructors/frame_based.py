@@ -100,7 +100,7 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
                 img = self.space_linear_op.adj_op(opt.x_final)
             else:
                 img = opt.x_final
-            next_init = img if warm_x else x_init
+            next_init = img if warm_x else x_init.copy()
             final_estimate[i, ...] = img
             # Progressbar update
         progbar.close()
