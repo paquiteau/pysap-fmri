@@ -23,7 +23,7 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
     BaseFMRIReconstructor: parent class
     """
 
-    def __init__(self, *args, optimizer="pogm", **kwargs):
+    def __init__(self, *args, optimizer="pogm", progbar_disable=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.opt_name = optimizer
         self.grad_formulation = OPTIMIZERS[optimizer]
@@ -65,8 +65,8 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
             )
 
         next_init = x_init
-        progbar_main = trange(len(kspace_data))
-        progbar = tqdm(total=max_iter_per_frame)
+        progbar_main = trange(len(kspace_data), disable=progbar_disable)
+        progbar = tqdm(total=max_iter_per_frame, disable=progbar_disable)
         for i in progbar_main:
             # only recreate gradient if the trajectory change.
             grad_op = self.get_grad_op(
@@ -89,6 +89,7 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
             # if no reset, the internal state is kept.
             # (e.g. dual variable, dynamic step size)
             if i == 0 and warm_x:
+                # The first frame takes more iterations to ensure convergence.
                 progbar.reset(total=3 * max_iter_per_frame)
                 opt.iterate(max_iter=3 * max_iter_per_frame, progbar=progbar)
             else:
