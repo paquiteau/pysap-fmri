@@ -4,7 +4,7 @@ version = "0.0.0"
 description = "Python Sparse data Analysis Package external fMRI plugin."
 authors = [{name="Pierre-antoine Comby", email="pierre-antoine.comby@crans.org"}]
 
-dependencies = ["python-pysap"]
+# dependencies = ["python-pysap"]
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov", "pytest-xdist", "pytest-sugar"]
