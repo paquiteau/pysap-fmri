@@ -16,7 +16,7 @@ else:
     import cupy as cp
 
 
-class SpaceFourierBase(abc.ABC):
+class SpaceFourierBase:
     """Spatial Fourier Transform on fMRI data.
 
     Parameters
@@ -36,13 +36,33 @@ class SpaceFourierBase(abc.ABC):
         List of Fourier Operator
     """
 
-    def __init__(self, shape, n_coils=1, n_frames=1, smaps=None):
+    def __init__(self, shape, n_coils=1, n_frames=1, smaps=None, fourier_ops=None):
 
         self.n_frames = n_frames
         self.n_coils = n_coils
         self.smaps = validate_smaps(shape, n_coils, smaps)
         self.shape = shape
-        self.fourier_ops = [None] * n_frames
+        self._fourier_ops = [None] * n_frames
+
+        if fourier_ops is not None:
+            self.fourier_ops = fourier_ops
+
+    @property
+    def fourier_ops(self):
+        return self._fourier_ops
+
+    @fourier_ops.setter
+    def fourier_ops(self, inputs):
+        if isinstance(inputs, list):
+            if len(inputs) != self.n_frames:
+                raise ValueError(
+                    "The number of operator provided is not consistent with the number of frames."
+                )
+            self._fourier_ops = (
+                inputs  # FIXME: check the type of each element using duck typing
+            )
+        else:
+            self._fourier_ops = [inputs] * self.n_frames
 
     def op(self, data):
         """Forward Operator method."""
