@@ -1,5 +1,4 @@
 """Fourier Operator for fMRI data."""
-import abc
 
 import numpy as np
 import scipy as sp
@@ -60,25 +59,11 @@ class SpaceFourierBase:
 
     def op(self, data):
         """Forward Operator method."""
-        adj_data = np.squeeze(
-            np.zeros((self.n_frames, self.n_coils, *self.shape), dtype="complex64")
-        )
-        for i in range(self.n_frames):
-            adj_data[i] = self.fourier_ops[i].op(data[i])
-        return adj_data
+        raise NotImplementedError
 
     def adj_op(self, adj_data):
         """Adjoint Operator method."""
-        data = np.squeeze(
-            np.zeros(
-                (self.n_frames, self.n_coils if self.smaps is None else 1, *self.shape),
-                dtype=adj_data.dtype,
-            )
-        )
-
-        for i in range(self.n_frames):
-            data[i] = self.fourier_ops[i].adj_op(adj_data[i])
-        return data
+        raise NotImplementedError
 
 
 class CartesianSpaceFourier(SpaceFourierBase):
@@ -120,6 +105,28 @@ class CartesianSpaceFourier(SpaceFourierBase):
                 smaps=self.smaps,
                 n_jobs=n_jobs,
             )
+
+    def op(self, data):
+        """Forward Operator method."""
+        adj_data = np.squeeze(
+            np.zeros((self.n_frames, self.n_coils, *self.shape), dtype="complex64")
+        )
+        for i in range(self.n_frames):
+            adj_data[i] = self.fourier_ops[i].op(data[i])
+        return adj_data
+
+    def adj_op(self, adj_data):
+        """Adjoint Operator method."""
+        data = np.squeeze(
+            np.zeros(
+                (self.n_frames, self.n_coils if self.smaps is None else 1, *self.shape),
+                dtype=adj_data.dtype,
+            )
+        )
+
+        for i in range(self.n_frames):
+            data[i] = self.fourier_ops[i].adj_op(adj_data[i])
+        return data
 
 
 class NonCartesianSpaceFourier(SpaceFourierBase):
@@ -208,6 +215,31 @@ class NonCartesianSpaceFourier(SpaceFourierBase):
                 acquisition.kspace_field_correction,
             )
         return fop
+
+    def op(self, data):
+        """Forward Operator method."""
+        adj_data = np.squeeze(
+            np.zeros(
+                (self.n_frames, self.n_coils, self.n_samples_per_frame),
+                dtype="complex64",
+            )
+        )
+        for i in range(self.n_frames):
+            adj_data[i] = self.fourier_ops[i].op(data[i])
+        return adj_data
+
+    def adj_op(self, adj_data):
+        """Adjoint Operator method."""
+        data = np.squeeze(
+            np.zeros(
+                (self.n_frames, self.n_coils if self.smaps is None else 1, *self.shape),
+                dtype=adj_data.dtype,
+            )
+        )
+
+        for i in range(self.n_frames):
+            data[i] = self.fourier_ops[i].adj_op(adj_data[i])
+        return data
 
 
 class TimeFourier:
