@@ -9,7 +9,7 @@ from .utils import validate_smaps
 
 MRI_CUFINUFFT_AVAILABLE = True
 try:
-    from mriCufinufft import MRICufiNUFFT
+    from mrinufft import MRICufiNUFFT
 except ImportError:
     MRI_CUFINUFFT_AVAILABLE = False
 else:
