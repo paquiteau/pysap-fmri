@@ -135,10 +135,10 @@ class NonCartesianSpaceFourier(SpaceFourierBase):
         Number of coils for pMRI, default 1.
     smaps: np.ndarray
         Sensitivity Maps, shared across time.
-    estimate_density: 'gpu' | 'cpu'
-        Method to estimate the density compensation.
     backend:  str
         A backend library implemented by mri-nufft. ex "finufft" or "cufinufft"
+    density: bool or numpy.ndarray
+        If true, estimate the density.
     Attributes
     ----------
     fourier_ops: list
@@ -152,8 +152,7 @@ class NonCartesianSpaceFourier(SpaceFourierBase):
         n_coils=1,
         n_frames=1,
         smaps=None,
-        smaps_cached=True,
-        estimate_density=True,
+        density=True,
         backend="cufinufft",
         **kwargs,
     ):
@@ -173,22 +172,15 @@ class NonCartesianSpaceFourier(SpaceFourierBase):
         else:
             raise ValueError("samples array should be 2D or 3D.")
 
-        if estimate_density is True and samples.ndim == 2:
-            density = MRI_operator_klass.estimate_density(
-                samples, self.shape, n_iter=20
-            )
-        else:
-            density = density
-        smaps = (
-            cp.array(smaps, copy=False) if smaps is not None and smaps_cached else smaps
-        )
+        if density is True and samples.ndim == 2:
+            density = MRI_operator_klass.estimate_density(samples, self.shape)
+
         for i in range(n_frames):
             self.fourier_ops[i] = MRI_operator_klass(
                 self.samples[i],
                 shape,
                 n_coils=n_coils,
                 smaps=smaps,
-                smaps_cached=smaps_cached,
                 density=density,
                 **kwargs,
             )
