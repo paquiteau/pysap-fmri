@@ -7,13 +7,7 @@ import scipy as sp
 from .fft import FFT
 from .utils import validate_smaps
 
-MRI_CUFINUFFT_AVAILABLE = True
-try:
-    from mrinufft import MRICufiNUFFT
-except ImportError:
-    MRI_CUFINUFFT_AVAILABLE = False
-else:
-    import cupy as cp
+from mrinufft import get_operator
 
 
 class SpaceFourierBase:
@@ -143,7 +137,8 @@ class NonCartesianSpaceFourier(SpaceFourierBase):
         Sensitivity Maps, shared across time.
     estimate_density: 'gpu' | 'cpu'
         Method to estimate the density compensation.
-
+    backend:  str
+        A backend library implemented by mri-nufft. ex "finufft" or "cufinufft"
     Attributes
     ----------
     fourier_ops: list
@@ -159,11 +154,10 @@ class NonCartesianSpaceFourier(SpaceFourierBase):
         smaps=None,
         smaps_cached=True,
         estimate_density=True,
-        **kwargs
+        backend="cufinufft",
+        **kwargs,
     ):
-        if not MRI_CUFINUFFT_AVAILABLE:
-            raise RuntimeError("MRICufinufft is not available.")
-
+        MRI_operator_klass = get_operator(backend)
         super().__init__(shape, n_coils, n_frames, smaps)
 
         if samples.ndim == 2 and n_frames == 0:
@@ -180,14 +174,16 @@ class NonCartesianSpaceFourier(SpaceFourierBase):
             raise ValueError("samples array should be 2D or 3D.")
 
         if estimate_density is True and samples.ndim == 2:
-            density = MRICufiNUFFT.estimate_density(samples, self.shape, n_iter=20)
+            density = MRI_operator_klass.estimate_density(
+                samples, self.shape, n_iter=20
+            )
         else:
             density = density
         smaps = (
             cp.array(smaps, copy=False) if smaps is not None and smaps_cached else smaps
         )
         for i in range(n_frames):
-            self.fourier_ops[i] = MRICufiNUFFT(
+            self.fourier_ops[i] = MRI_operator_klass(
                 self.samples[i],
                 shape,
                 n_coils=n_coils,
