@@ -53,6 +53,8 @@ class LowRankPluSparseReconstructor(BaseFMRIReconstructor):
     def reconstruct(self, kspace_data, max_iter=200):
 
         lr_s_data = np.zeros((2, len(kspace_data, *self.fourier_op.shape)))
+        lr_s_data[0] = self.fourier_op.adj_op(kspace_data) / 2
+        lr_s_data[1] = lr_s_data[0].copy()
 
         self.joint_grad_op = JointGradient(
             input_data=kspace_data, op=self.fourier_op, trans_op=self.fourier_op.adj_op
@@ -67,5 +69,5 @@ class LowRankPluSparseReconstructor(BaseFMRIReconstructor):
             prox=self.joint_prox_op,
             progress=True,
         )
-
+        # return M, L, S
         return opt.x_final[0] + opt.x_final[1], opt.x_final[0], opt.x_final[1]
