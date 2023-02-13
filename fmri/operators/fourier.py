@@ -12,6 +12,8 @@ from mrinufft import get_operator
 class SpaceFourierBase:
     """Spatial Fourier Transform on fMRI data.
 
+    This operator applies a sequence of fourier operator to a sequence of volumic data (frames).
+
     Parameters
     ----------
     shape: tuple
@@ -51,9 +53,7 @@ class SpaceFourierBase:
                 raise ValueError(
                     "The number of operator provided is not consistent with the number of frames."
                 )
-            self._fourier_ops = (
-                inputs  # FIXME: check the type of each element using duck typing
-            )
+            self._fourier_ops = inputs
         else:
             self._fourier_ops = [inputs] * self.n_frames
 
@@ -221,7 +221,7 @@ class NonCartesianSpaceFourier(SpaceFourierBase):
         adj_data = np.squeeze(
             np.zeros(
                 (self.n_frames, self.n_coils, self.n_samples_per_frame),
-                dtype="complex64",
+                dtype=data.dtype,
             )
         )
         for i in range(self.n_frames):
