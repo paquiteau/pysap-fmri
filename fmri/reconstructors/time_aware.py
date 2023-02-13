@@ -18,7 +18,7 @@ class JointGradient(GradBasic):
         self.grad = grad[np.newaxis, ...]  # help for the broadcast.
 
 
-class LowRankPluSparseReconstructor(BaseFMRIReconstructor):
+class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
     """Low Rank + Sparse Reconstruction of fMRI data.
 
     Parameters
