@@ -48,7 +48,14 @@ def _fit_grid(n_tiles):
 
 
 def mosaic(
-    array, axis=-1, samples=-1, n_rows=-1, n_cols=-1, img_w=3, fig=None, cmap="gray"
+    array,
+    axis=-1,
+    samples=-1,
+    n_rows=-1,
+    n_cols=-1,
+    img_w=3,
+    fig=None,
+    cmap="gray",
 ):
     """Plot a 3D array as a tiled grid of 2D images.
 
@@ -88,7 +95,7 @@ def mosaic(
         axis = 3 + axis
 
     slicer = [slice(None), slice(None), slice(None)]
-    axis_label = ["x", "y", "z"]
+    axis_label = ["t", "x", "y", "z"]
 
     if samples == -1:
         samples_loc = np.arange(array.shape[axis])
