@@ -3,7 +3,7 @@
 import numpy as np
 from modopt.opt.proximity import SparseThreshold, ProximityParent
 from modopt.opt.cost import costObj
-from modopt.opt.algorithms import POGM
+from modopt.opt.algorithms import POGM, ForwardBackward
 from modopt.opt.gradient import GradBasic
 from modopt.math.matrix import PowerMethod
 
@@ -83,18 +83,24 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
     def __init__(
         self,
         fourier_op: SpaceFourierBase,
-        time_linear_op: TimeFourier,
         lambda_lr: float,
         lambda_sparse: float,
+        time_linear_op: TimeFourier = None,
+        time_prox_op: ProximityParent = None,
     ):
         self.fourier_op = fourier_op
         self.space_prox_op = FlattenSVT(lambda_lr, 5, thresh_type="hard-rel")
-        self.time_prox_op = InTransformSparseThreshold(
-            time_linear_op, lambda_sparse, thresh_type="soft"
-        )
+        if time_prox_op is None:
+            self.time_prox_op = InTransformSparseThreshold(
+                time_linear_op, lambda_sparse, thresh_type="soft"
+            )
+        else:
+            self.time_prox_op = time_prox_op
         self.joint_prox_op = JointProx([self.space_prox_op, self.time_prox_op])
 
-    def reconstruct(self, kspace_data, max_iter=200, grad_step=None):
+    def reconstruct(
+        self, kspace_data, max_iter=200, grad_step=None, optimizer: str = "pogm"
+    ):
 
         lr_s_data = np.zeros(
             (2, self.fourier_op.n_frames, *self.fourier_op.shape),
@@ -112,20 +118,33 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
         if grad_step is None:
             pm = PowerMethod(self.joint_grad_op.trans_op_op, lr_s_data.shape)
             grad_step = pm.inv_spec_rad
+        if optimizer == "pogm":
+            opt = POGM(
+                u=lr_s_data,
+                x=lr_s_data.copy(),
+                y=lr_s_data.copy(),
+                z=lr_s_data.copy(),
+                grad=self.joint_grad_op,
+                prox=self.joint_prox_op,
+                cost=costObj([self.joint_grad_op, self.joint_prox_op], verbose=False),
+                progress=True,
+                beta_param=grad_step,
+                auto_iterate=False,
+                verbose=False,
+            )
+        elif optimizer == "fista":
+            opt = ForwardBackward(
+                x=lr_s_data,
+                grad=self.joint_grad_op,
+                prox=self.joint_prox_op,
+                cost=costObj([self.joint_grad_op, self.joint_prox_op], verbose=False),
+                beta_param=grad_step,
+                auto_iterate=False,
+                verbose=False,
+            )
+        else:
+            raise ValueError(f"Optimizer '{optimizer}' not supported")
 
-        opt = POGM(
-            u=lr_s_data.copy(),
-            x=lr_s_data.copy(),
-            y=lr_s_data.copy(),
-            z=lr_s_data.copy(),
-            grad=self.joint_grad_op,
-            prox=self.joint_prox_op,
-            cost=costObj([self.joint_grad_op, self.joint_prox_op], verbose=False),
-            progress=True,
-            beta_param=grad_step,
-            auto_iterate=False,
-            verbose=False,
-        )
         opt.iterate(max_iter=max_iter)
         costs = opt._cost_func._cost_list
 
