@@ -32,20 +32,13 @@ class ProxTV1d:
 
     Notes
     -----
-    For the 'fista' and 'pogm' methods, the algorithm solves a form of the LASSO problem, where the data is centered
-    before applying the algorithm. See [1] for more details.
-    method='chambolle_pock' follows the implementation of [2].
-    method='condat' follows the implementation of [3].
-
-
-
-    References
-    ----------
-    .. [1]
-
+    For the 'fista' and 'pogm' methods, the algorithm solves a LASSO problem,
+    where the data is centered before applying the algorithm. See [1] for more details.
     """
 
-    def __init__(self, lambda_tv, lambda_max=None, method="condat" max_iter=100, **kwargs):
+    def __init__(
+        self, lambda_tv, lambda_max=None, method="condat", max_iter=100, **kwargs
+    ):
         self.lambda_tv = lambda_tv
         self.lambda_max = lambda_max
         self.max_iter = max_iter
