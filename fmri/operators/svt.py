@@ -139,15 +139,13 @@ class FlattenSVT(SingularValueThreshold):
 
         else:
             shape = data.shape
-            results = super().op(
-                np.reshape(data, (shape[0], np.prod(shape[1:]))), extra_factor
-            )
+            results = super().op(data.reshape(shape[0], -1), extra_factor)
             results = np.reshape(results, data.shape)
             return results
 
     def cost(self, data):
         """Compute cost."""
-        return super().cost(np.reshape(data, (data.shape[0], -1)))
+        return super().cost(data.reshape(data.shape[0], -1))
 
 
 class FlattenRankConstraint(RankConstraint):
@@ -155,7 +153,7 @@ class FlattenRankConstraint(RankConstraint):
         super().__init__(rank)
         self.roi = roi
 
-    def op(self, data, roi=None):
+    def op(self, data, roi=None, extra_factor=1.0):
         """Rank Constraint on flatten array."""
         roi = roi or self.roi
         if roi is not None:
@@ -167,7 +165,7 @@ class FlattenRankConstraint(RankConstraint):
 
         else:
             shape = data.shape
-            results = super().op(np.reshape(data, (shape[0], -1)))
+            results = super().op(data.reshape(shape[0], -1))
             results = np.reshape(results, data.shape)
             return results
 
