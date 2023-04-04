@@ -43,6 +43,7 @@ class ProxTV1d:
         self.lambda_max = lambda_max
         self.max_iter = max_iter
         self.kwargs = kwargs
+        self.dtype = None
 
         if callable(method):
             self.method = method
@@ -74,6 +75,11 @@ class ProxTV1d:
         np.ndarray
             Output data.
         """
+        if np.iscomplexobj(data):
+            self.dtype = data.real.dtype
+        else:
+            self.dtype = data.dtype
+        extra_factor = np.asarray(extra_factor, dtype=self.dtype)
         return self.method(data, extra_factor)
 
     def _forward_backward_setup(self, data, lambda_reg):
