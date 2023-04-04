@@ -55,11 +55,11 @@ class ProxTV1d:
         self._center_synth_mat = None
 
     @property
-    def lambda_reg(self):
+    def l_reg(self):
         """Regularization parameter."""
         if self.lambda_max is None:
-            return self.lambda_tv
-        return self.lambda_tv * self.lambda_max
+            return np.asarray(self.lambda_tv, dtype=self.dtype)
+        return np.asarray(self.lambda_tv * self.lambda_max, dtype=self.dtype)
 
     def op(self, data, extra_factor=1.0):
         """Proximity operator for Total Variation 1D.
@@ -102,7 +102,7 @@ class ProxTV1d:
             trans_op=self._center_synth_mat.T.dot,
         )
         prox_op = SparseThreshold(
-            Identity(), weights=lambda_reg, thresh_type="soft", thresh=self.lambda_reg
+            Identity(), weights=lambda_reg, thresh_type="soft", thresh=self.l_reg
         )
         cost_op = costObj(
             [grad_op, prox_op],
@@ -114,7 +114,7 @@ class ProxTV1d:
 
     def _pogm(self, data, extra_factor=1.0):
         grad_op, prox_op, cost_op = self._forward_backward_setup(
-            data, extra_factor * self.lambda_reg
+            data, extra_factor * self.l_reg
         )
         pogm = POGM(
             u=np.zeros_like(data),
@@ -148,7 +148,7 @@ class ProxTV1d:
 
     def _condat(self, data, extra_factor=1.0):
         dataflatten = data.reshape(data.shape[0], -1)
-        return prox_tv1d(dataflatten, extra_factor * self.lambda_reg).reshape(
+        return prox_tv1d_taut_string(dataflatten, extra_factor * self.l_reg).reshape(
             data.shape
         )
 
