@@ -83,16 +83,21 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
     def __init__(
         self,
         fourier_op: SpaceFourierBase,
-        lambda_lr: float,
-        lambda_sparse: float,
         time_linear_op: TimeFourier = None,
         time_prox_op: ProximityParent = None,
+        space_prox_op: ProximityParent = None,
+        lambda_space: float = 0.1,
+        lambda_time: float = 0.1,
     ):
         self.fourier_op = fourier_op
-        self.space_prox_op = FlattenSVT(lambda_lr, 5, thresh_type="hard-rel")
+        if space_prox_op is None:
+            self.space_prox_op = FlattenSVT(lambda_space, 5, thresh_type="hard-rel")
+        else:
+            self.space_prox_op = space_prox_op
+
         if time_prox_op is None:
             self.time_prox_op = InTransformSparseThreshold(
-                time_linear_op, lambda_sparse, thresh_type="soft"
+                time_linear_op, lambda_time, thresh_type="soft"
             )
         else:
             self.time_prox_op = time_prox_op
