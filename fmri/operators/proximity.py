@@ -6,7 +6,7 @@ from modopt.opt.algorithms import ForwardBackward, POGM
 
 import numpy as np
 
-from .proxtv import prox_tv1d
+from .proxtv import prox_tv1d_taut_string, vec_tv_mm, vec_gtv
 
 
 class ProxTV1d:
@@ -15,10 +15,10 @@ class ProxTV1d:
     Parameters
     ----------
     method: str or callable
-        Algorithm use to compute the proximity operator.
-        Available methods are: 'fista', 'POGM', 'chambolle_pock', 'condat'.
+        Algorithm use to compute the proximity operator. Available are:
+        'fista', 'POGM', 'chambolle_pock', 'condat', 'mm', 'gtv_mm'.
         If callable, it should be a function that takes the data as input and
-        returns the proximity operator.
+        apply a proximal operator.
     lambda_tv: float
         Regularization parameter.
     lambda_max: float, default None
@@ -157,6 +157,31 @@ class ProxTV1d:
         return prox_tv1d_taut_string(dataflatten, extra_factor * self.l_reg).reshape(
             data.shape
         )
+
+    def _tv_mm(self, data, extra_factor=1.0):
+        flat = data.reshape(data.shape[0], -1)
+        if np.iscomplexobj(data):
+            ret = np.zeros_like(flat)
+            ret.real = vec_tv_mm(flat.real, extra_factor * self.l_reg, 100, 1e-3)
+            ret.imag = vec_tv_mm(flat.imag, extra_factor * self.l_reg, 100, 1e-3)
+        else:
+            ret = vec_tv_mm(flat, extra_factor * self.l_reg)
+        return ret.reshape(data.shape)
+
+    def _gtv_mm(self, data, extra_factor=1.0):
+        K = np.int16(self.kwargs.get("K", 3))
+        flat = data.reshape(data.shape[0], -1)
+        if np.iscomplexobj(data):
+            ret = np.zeros_like(flat)
+            ret.real = vec_gtv(flat.real, extra_factor * self.l_reg, K, 100, 1e-3)
+            ret.imag = vec_gtv(flat.imag, extra_factor * self.l_reg, K, 100, 1e-3)
+        else:
+            ret = vec_gtv(data, extra_factor * self.l_reg, K, 100, 1e-3)
+        return ret.reshape(data.shape)
+
+    def cost(self, *args, **kwargs):
+        """Cost function for Total Variation 1D."""
+        return np.sum(np.abs(np.diff(args[0], axis=0)))
 
     @classmethod
     def get_lambda_max(cls, y):
