@@ -29,7 +29,7 @@ class JointGradient(GradBasic):
         # duplicate the data, copy is necessary
         # broadcast_to method return read-only array which is not compatible
         # with the restart strategy of POGM.
-        return np.repeat(ret[np.newaxis, ...], 2, axis=0)
+        return np.repeat(0.5 * ret[np.newaxis, ...], 2, axis=0)
 
 
 class JointProx(ProximityParent):
@@ -116,7 +116,11 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
         )
 
         if grad_step is None:
-            pm = PowerMethod(self.joint_grad_op.trans_op_op, lr_s_data.shape)
+            pm = PowerMethod(
+                self.joint_grad_op.trans_op_op,
+                lr_s_data.shape,
+                data_type=kspace_data.dtype,
+            )
             grad_step = pm.inv_spec_rad
         if optimizer == "pogm":
             opt = POGM(
