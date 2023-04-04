@@ -102,7 +102,26 @@ class RankConstraint(ProximityParent):
 
 
 class FlattenSVT(SingularValueThreshold):
-    """Same as SingularValueThreshold but flatten spatial dimension."""
+    """Same as SingularValueThreshold but flatten spatial dimension.
+
+
+    Parameters
+    ----------
+    threshold: float
+        Threshold value
+    thresh_type: str
+        Must be in  {"soft", "hard", "soft-rel", "hard-rel"}
+        If contains "-rel", the threshold value is considered relative to the
+        maximal singular value.
+    initial_rank: int
+        Initial rank to use for the SVD.
+    roi: ndarray
+        Region of interest to apply the operator on.
+
+    See Also
+    --------
+    SingularValueThreshold: Singular Value Threshold operator.
+    """
 
     def __init__(self, threshold, initial_rank, roi=None, thresh_type="hard-rel"):
         super().__init__(threshold, initial_rank, thresh_type=thresh_type)
@@ -151,3 +170,7 @@ class FlattenRankConstraint(RankConstraint):
             results = super().op(np.reshape(data, (shape[0], -1)))
             results = np.reshape(results, data.shape)
             return results
+
+    def cost(self, data):
+        """Compute cost."""
+        return super().cost(data.reshape(data.shape[0], -1))
