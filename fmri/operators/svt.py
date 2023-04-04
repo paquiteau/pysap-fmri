@@ -83,7 +83,7 @@ class RankConstraint(ProximityParent):
     def __init__(self, rank=1):
         self._rank = rank
 
-    def op(self, data):
+    def op(self, data, extra_factor=1.0):
         max_rank = min(data.shape) - 2
         compute_rank = min(self._rank, max_rank)
         U, S, V = sp.sparse.linalg.svds(data, k=compute_rank)
@@ -94,7 +94,11 @@ class RankConstraint(ProximityParent):
 
         This is the nuclear norm of data.
         """
-        return np.sum(np.abs(sp.linalg.svds(data, compute_uv=False, k=self._rank)))
+        return np.sum(
+            np.abs(
+                sp.sparse.linalg.svds(data, return_singular_vectors=False, k=self._rank)
+            )
+        )
 
 
 class FlattenSVT(SingularValueThreshold):
