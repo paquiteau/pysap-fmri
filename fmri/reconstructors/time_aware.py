@@ -39,7 +39,6 @@ class JointProx(ProximityParent):
         self.cost = self._cost_method
 
     def _op_method(self, input_data, extra_factor=1.0):
-
         res = np.zeros_like(input_data)
 
         for i, operator in enumerate(self.operators):
@@ -88,6 +87,7 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
         space_prox_op: ProximityParent = None,
         lambda_space: float = 0.1,
         lambda_time: float = 0.1,
+        cost="auto",
     ):
         self.fourier_op = fourier_op
         if space_prox_op is None:
@@ -103,10 +103,11 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
             self.time_prox_op = time_prox_op
         self.joint_prox_op = JointProx([self.space_prox_op, self.time_prox_op])
 
+        self._cost = cost
+
     def reconstruct(
         self, kspace_data, max_iter=200, grad_step=None, optimizer: str = "pogm"
     ):
-
         lr_s_data = np.zeros(
             (2, self.fourier_op.n_frames, *self.fourier_op.shape),
             dtype=kspace_data.dtype,
@@ -119,6 +120,8 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
             op=self.fourier_op.op,
             trans_op=self.fourier_op.adj_op,
         )
+        if self.cost == "auto":
+            self.cost = costObj([self.joint_grad_op, self.joint_prox_op], verbose=False)
 
         if grad_step is None:
             pm = PowerMethod(
@@ -135,7 +138,7 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
                 z=lr_s_data.copy(),
                 grad=self.joint_grad_op,
                 prox=self.joint_prox_op,
-                cost=costObj([self.joint_grad_op, self.joint_prox_op], verbose=False),
+                cost=self.cost,
                 progress=True,
                 beta_param=grad_step,
                 auto_iterate=False,
@@ -146,7 +149,7 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
                 x=lr_s_data,
                 grad=self.joint_grad_op,
                 prox=self.joint_prox_op,
-                cost=costObj([self.joint_grad_op, self.joint_prox_op], verbose=False),
+                cost=self.cost,
                 beta_param=grad_step,
                 auto_iterate=False,
                 verbose=False,
