@@ -60,6 +60,7 @@ class FFT:
             ),
             axes=axes,
         )
+        res = np.complex64(res)
         if self.smaps is not None:
             return self.smaps * res
         return res
