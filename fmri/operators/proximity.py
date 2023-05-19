@@ -16,7 +16,7 @@ class ProxTV1d:
     ----------
     method: str or callable
         Algorithm use to compute the proximity operator. Available are:
-        'fista', 'POGM', 'chambolle_pock', 'condat', 'mm', 'gtv_mm'.
+        'fista', 'POGM', 'chambolle_pock', 'condat', 'tv_mm', 'gtv_mm'.
         If callable, it should be a function that takes the data as input and
         apply a proximal operator.
     lambda_tv: float
