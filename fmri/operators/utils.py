@@ -7,7 +7,7 @@ from fmri.utils import DimensionMismatchError
 
 def validate_shape(shape, array):
     """Validate shape of array."""
-    if array.shape != shape:
+    if array.shape != tuple(shape):
         raise DimensionMismatchError(
             f"array should have dimension {shape}, but has {array.shape}"
         )
