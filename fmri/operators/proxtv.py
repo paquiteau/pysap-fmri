@@ -3,11 +3,7 @@ Proximity Operator for Total Variation in 1D.
 """
 import numpy as np
 
-NUMBA_AVAILABLE = True
-try:
-    import numba as nb
-except ImportError:
-    NUMBA_AVAILABLE = False
+import numba as nb
 
 nbr1d64 = nb.types.Array(nb.types.float64, 1, "A", readonly=True)
 nbr1d32 = nb.types.Array(nb.types.float32, 1, "A", readonly=True)
