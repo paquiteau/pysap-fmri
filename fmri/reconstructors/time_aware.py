@@ -103,7 +103,7 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
             self.time_prox_op = time_prox_op
         self.joint_prox_op = JointProx([self.space_prox_op, self.time_prox_op])
 
-        self._cost = cost
+        self.cost = cost
 
     def reconstruct(
         self, kspace_data, max_iter=200, grad_step=None, optimizer: str = "pogm"
@@ -150,7 +150,6 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
                 grad=self.joint_grad_op,
                 prox=self.joint_prox_op,
                 cost=self.cost,
-                beta_param=grad_step,
                 auto_iterate=False,
                 verbose=False,
             )
