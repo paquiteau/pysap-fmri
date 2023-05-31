@@ -399,6 +399,8 @@ def gtv_mm_tol2(y, lmbd, K=1, max_iter=100, tol=1e-3):
     cost_prev = 1e40
     for i in range(max_iter):
         tmp = (x[1:] - x[:-1]) ** 2
+        if np.min(tmp) < 1e-10:
+            break
         tmp = running_sum_valid(tmp, K)
         tmp = np.sqrt(tmp)
         # cost =  0.5 * np.sqrt(np.sum(np.abs(y - x)**2)) + lmbd * np.sum(tmp)
