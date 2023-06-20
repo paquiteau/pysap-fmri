@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
 """Singular Value Threshold operator."""
 import warnings
+import logging
 
 import numpy as np
 import scipy as sp
 from modopt.opt.linear import Identity
 from modopt.opt.proximity import ProximityParent
 from modopt.signal.noise import thresh
+
+
+logger = logging.getLogger("pysap-fmri")
 
 
 class SingularValueThreshold(ProximityParent):
@@ -49,7 +53,7 @@ class SingularValueThreshold(ProximityParent):
         """
         max_rank = min(data.shape) - 2
         if self._rank > max_rank:
-            warnings.warn("initial rank bigger than maximal possible one, updating.")
+            logger.warn("initial rank bigger than maximal possible one, updating.")
 
         compute_rank = min(self._rank + 1, max_rank)
         # Singular value are  in increasing order !
@@ -65,10 +69,13 @@ class SingularValueThreshold(ProximityParent):
             and compute_rank < max_rank
         ):
             compute_rank = min(compute_rank + self._incre, max_rank)
-            U, S, V = sp.sparse.linalg.svds(data, k=compute_rank)
+            U, S, V = sp.sparse.linalg.svds(data_center, k=compute_rank)
+            logger.debug(f"increasing rank to {compute_rank}")
 
         S = thresh(S, thresh_val, self._threshold_type)
         self._rank = np.count_nonzero(S)
+        logger.debug(f"new Rank: {self._rank}, max value: {np.max(S)}")
+
         return (U[:, -self._rank :] * S[-self._rank :]) @ V[-self._rank :, :]
 
     def cost(self, data):
