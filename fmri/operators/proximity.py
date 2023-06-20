@@ -6,7 +6,7 @@ from modopt.opt.algorithms import ForwardBackward, POGM
 
 import numpy as np
 
-from .proxtv import prox_tv1d_taut_string, vec_tv_mm, vec_gtv
+from .proxtv import tv_taut_string, vec_tv_mm, vec_gtv
 
 
 class ProxTV1d:
@@ -154,9 +154,14 @@ class ProxTV1d:
 
     def _condat(self, data, extra_factor=1.0):
         dataflatten = data.reshape(data.shape[0], -1)
-        return prox_tv1d_taut_string(dataflatten, extra_factor * self.l_reg).reshape(
-            data.shape
-        )
+        if np.iscomplexobj(data):
+            ret = np.zeros_like(dataflatten)
+            ret.real = tv_taut_string(dataflatten.real, extra_factor * self.l_reg)
+            ret.imag = tv_taut_string(dataflatten.imag, extra_factor * self.l_reg)
+        else:
+            ret = tv_taut_string(dataflatten, extra_factor * self.l_reg)
+
+        return ret.reshape(data.shape)
 
     def _tv_mm(self, data, extra_factor=1.0):
         flat = data.reshape(data.shape[0], -1)

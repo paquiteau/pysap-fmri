@@ -16,8 +16,19 @@ nb2d32 = nb.types.Array(nb.types.float32, 2, "A")
 nb1d64 = nb.types.Array(nb.types.float64, 1, "A")
 nb1d32 = nb.types.Array(nb.types.float32, 1, "A")
 
+nbr1d64c = nb.types.Array(nb.types.complex128, 1, "A", readonly=True)
+nbr1d32c = nb.types.Array(nb.types.complex64, 1, "A", readonly=True)
 
-@nb.njit
+nbr2d64c = nb.types.Array(nb.types.complex128, 2, "A", readonly=True)
+nbr2d32c = nb.types.Array(nb.types.complex64, 2, "A", readonly=True)
+
+nb2d64c = nb.types.Array(nb.types.complex128, 2, "A")
+nb2d32c = nb.types.Array(nb.types.complex64, 2, "A")
+nb1d64c = nb.types.Array(nb.types.complex128, 1, "A")
+nb1d32c = nb.types.Array(nb.types.complex64, 1, "A")
+
+
+@nb.njit(nb1d32(nbr1d32, nb.types.float32, nb1d32))
 def linearizedTautString(y, lmbd, x):
     """Linearized Taut String algorithm.
 
@@ -111,8 +122,11 @@ def linearizedTautString(y, lmbd, x):
     return x
 
 
-@nb.njit(parallel=True)
-def prox_tv1d_taut_string(y, lmbd):
+@nb.njit(
+    nb2d32(nbr2d32, nb.types.float32),
+    parallel=True,
+)
+def tv_taut_string(y, lmbd):
     """Proximity operator for Total Variation in 1D.
 
     Parameters
@@ -133,7 +147,7 @@ def prox_tv1d_taut_string(y, lmbd):
     """
     x = np.zeros_like(y)
     for i in nb.prange(y.shape[1]):
-        linearizedTautString(y[:, i], lmbd[i], x[:, i])
+        linearizedTautString(y[:, i], lmbd, x[:, i])
     return x.reshape(y.shape)
 
 
