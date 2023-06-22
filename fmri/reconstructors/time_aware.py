@@ -1,9 +1,11 @@
 """Reconstructor for fMRI data using full reconstruction paradigm."""
+from functools import partial
 
 import numpy as np
 from modopt.opt.proximity import SparseThreshold, ProximityParent
 from modopt.opt.cost import costObj
-from modopt.opt.algorithms import POGM, ForwardBackward
+from modopt.opt.algorithms import POGM, ForwardBackward, ADMM, FastADMM
+from modopt.opt.algorithms.admm import ADMMcostObj
 from modopt.opt.gradient import GradBasic
 from modopt.math.matrix import PowerMethod
 
@@ -101,27 +103,40 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
             )
         else:
             self.time_prox_op = time_prox_op
-        self.joint_prox_op = JointProx([self.space_prox_op, self.time_prox_op])
 
         self.cost = cost
 
     def reconstruct(
-        self, kspace_data, max_iter=200, grad_step=None, optimizer: str = "pogm"
+        self,
+        kspace_data: np.ndarray,
+        max_iter: int = 200,
+        grad_step=None,
+        optimizer: str = "pogm",
+        verbose: bool = False,
+        **kwargs,
     ):
-        lr_s_data = np.zeros(
-            (2, self.fourier_op.n_frames, *self.fourier_op.shape),
-            dtype=kspace_data.dtype,
-        )
-        lr_s_data[0] = self.fourier_op.adj_op(kspace_data) / 2
-        lr_s_data[1] = lr_s_data[0].copy()
-
-        self.joint_grad_op = JointGradient(
-            input_data=kspace_data,
-            op=self.fourier_op.op,
-            trans_op=self.fourier_op.adj_op,
-        )
+        if optimizer in ["pogm", "fista"]:
+            self.joint_prox_op = JointProx([self.space_prox_op, self.time_prox_op])
+            self.joint_grad_op = JointGradient(
+                input_data=kspace_data,
+                op=self.fourier_op.op,
+                trans_op=self.fourier_op.adj_op,
+            )
+            lr_s_data = np.zeros(
+                (2, self.fourier_op.n_frames, *self.fourier_op.shape),
+                dtype=kspace_data.dtype,
+            )
+            lr_s_data[0] = self.fourier_op.adj_op(kspace_data) / 2
+            lr_s_data[1] = lr_s_data[0].copy()
+        else:
+            lr_s_data = self.fourier_op.adj_op(kspace_data) / 2
         if self.cost == "auto":
-            self.cost = costObj([self.joint_grad_op, self.joint_prox_op], verbose=False)
+            if optimizer in ["pogm", "fista"]:
+                self.cost = costObj(
+                    [self.joint_grad_op, self.joint_prox_op], verbose=False
+                )
+            elif optimizer == "admm":
+                self.cost = [self.space_prox_op.cost, self.time_prox_op.cost]
 
         if grad_step is None:
             pm = PowerMethod(
@@ -149,15 +164,53 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
                 x=lr_s_data,
                 grad=self.joint_grad_op,
                 prox=self.joint_prox_op,
-                cost=self.cost,
+                cost=None,
                 auto_iterate=False,
                 verbose=False,
             )
+        elif "admm" in optimizer:
+
+            def subopt(init, obs, prox):
+                """Solve the low rank subproblem"""
+                opt = ForwardBackward(
+                    x=init,
+                    grad=GradBasic(obs, self.fourier_op.op, self.fourier_op.adj_op),
+                    prox=prox,
+                    beta_param=grad_step,
+                    cost=None,
+                    auto_iterate=False,
+                    verbose=False,
+                )
+                opt.iterate(max_iter=10)
+                return opt.x_final
+
+            opt = {"fastadmm": FastADMM, "admm": ADMM}[optimizer](
+                u=lr_s_data,
+                v=lr_s_data.copy(),
+                mu=np.ones_like(kspace_data),
+                A=self.fourier_op,
+                B=self.fourier_op,
+                optimizers=(
+                    partial(subopt, prox=self.space_prox_op),
+                    partial(subopt, prox=self.time_prox_op),
+                ),
+                b=kspace_data,
+                auto_iterate=False,
+                verbose=False,
+            )
+
         else:
             raise ValueError(f"Optimizer '{optimizer}' not supported")
 
         opt.iterate(max_iter=max_iter)
         costs = opt._cost_func._cost_list
 
-        # return M, L, S
-        return opt.x_final[0] + opt.x_final[1], opt.x_final[0], opt.x_final[1], costs
+        if optimizer in ["pogm", "fista"]:
+            return (
+                opt.x_final[0] + opt.x_final[1],
+                opt.x_final[0],
+                opt.x_final[1],
+                costs,
+            )
+        else:
+            return opt.u_final + opt.v_final, opt.u_final, opt.v_final, costs
