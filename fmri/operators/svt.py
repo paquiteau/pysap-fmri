@@ -69,7 +69,7 @@ class SingularValueThreshold(ProximityParent):
             and compute_rank < max_rank
         ):
             compute_rank = min(compute_rank + self._incre, max_rank)
-            U, S, V = sp.sparse.linalg.svds(data_center, k=compute_rank)
+            U, S, V = sp.sparse.linalg.svds(data, k=compute_rank)
             logger.debug(f"increasing rank to {compute_rank}")
 
         S = thresh(S, thresh_val, self._threshold_type)
