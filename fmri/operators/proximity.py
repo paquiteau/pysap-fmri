@@ -4,9 +4,11 @@ from modopt.opt.gradient import GradBasic
 from modopt.opt.cost import costObj
 from modopt.opt.algorithms import ForwardBackward, POGM
 
+
 import numpy as np
 
 from .proxtv import tv_taut_string, vec_tv_mm, vec_gtv
+from .svt import SingularValueThreshold
 
 
 class ProxTV1d:
@@ -201,3 +203,103 @@ class ProxTV1d:
             Maximum value of the regularization parameter.
         """
         return np.max(np.abs(y - y.mean(axis=0)))
+
+
+class MultiScaleLowRankSparse:
+    """A double proximal operator that regularize a series of image using spatial wavelet.
+
+    Two priors are combined: A Low-Rank Prior on the approximation coefficients
+    and a Sparse Prior on the details coefficients.
+
+    Parameters
+    ----------
+    lambda_lr: float
+        Regularization parameter for the low-rank prior.
+    lambda_sp: float
+        Regularization parameter for the sparse prior.
+    linear_op: class
+        Linear operator to apply to the data.
+    """
+
+    def __init__(self, lambda_lr, lambda_sp, prox_lr, prox_sp, linear_op):
+        self.linear_op = linear_op
+        self.lambda_lr = lambda_lr
+        self.lambda_sp = lambda_sp
+        self.prox_lr = prox_lr
+        self.prox_sp = prox_sp
+
+    @property
+    def lambda_lr(self):
+        return self._lambda_lr
+
+    @lambda_lr.setter
+    def lambda_lr(self, value):
+        self._lambda_lr = value
+        self.prox_lr._threshold = value
+
+    @property
+    def lambda_sp(self):
+        return self._lambda_sp
+
+    @lambda_sp.setter
+    def lambda_sp(self, value):
+        self._lambda_sp = value
+        self.prox_sp.weights = value
+
+    def op(self, data):
+        """
+        Parameters
+        ----------
+        data: np.ndarray
+            Input data.
+
+        Returns
+        -------
+        np.ndarray
+            Regularized data.
+        """
+
+        coeffs = [] * len(data.shape[0])
+        # TODO: Run in parallel
+        for i in range(data.shape[0]):
+            coeffs[i] = self.linear_op.op(data[i, :])
+
+        if self.cf_shape is None:
+            self.cf_shape = self.linear_op.cf_shape
+
+        coeffs = np.array(coeffs)  # Expensive ?
+        # Extract the coarse scale
+        coarse_size = self.cf_shape[0]
+        if self.lambda_lr:
+            coarse = coeffs[:, np.prod(*coarse_size)]
+            # Compute the low-rank approximation
+            coarse_lr = self.prox_lr.op(coarse)
+
+        if self.lambda_sp:
+            # Compute the sparse approximation
+            details = coeffs[:, np.prod(*coarse_size) :]
+
+            details_sp = self.prox_sp.op(details)
+
+        # Reconstruct the data
+        coeffs = np.concatenate((coarse_lr, details_sp), axis=1)
+
+        data_reg = np.zeros_like(data)
+        for i in range(data.shape[0]):
+            data_reg[i] = self.linear_op.adj_op(coeffs[i, :])
+
+        return data_reg
+
+    @classmethod
+    def init_lr(cls, lambda_lr, wavelet_name="sym8", n_scale=3):
+        """Initialize the prox with only the LowRank prior."""
+        pass
+
+    def init_lrsp(cls, lambda_lr, lambda_sp, wavelet_name="sym8", n_scale=3):
+        """Initialize the prox with a LowRank and Sparse (l1) prior."""
+
+        pass
+
+    def cost(self, *args, **kwargs):
+        """Cost function for the LowRankSparse proximal operator."""
+        pass
