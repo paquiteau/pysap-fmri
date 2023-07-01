@@ -164,10 +164,12 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
                 x=lr_s_data,
                 grad=self.joint_grad_op,
                 prox=self.joint_prox_op,
-                cost=None,
+                cost=self.cost,
                 auto_iterate=False,
+                beta_param=grad_step,
                 verbose=False,
             )
+
         elif "admm" in optimizer:
 
             def subopt(init, obs, prox):
