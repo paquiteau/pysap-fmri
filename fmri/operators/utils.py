@@ -1,8 +1,15 @@
 """Utilities for fMRI Operators."""
-
+from modopt.opt.proximity import SparseThreshold
 from modopt.opt.gradient import GradBasic
 
 from fmri.utils import DimensionMismatchError
+
+
+class InTransformSparseThreshold(SparseThreshold):
+    def _op_method(self, input_data, extra_factor=1.0):
+        return self._linear.adj_op(
+            super()._op_method(self._linear.op(input_data), extra_factor=extra_factor)
+        )
 
 
 def validate_shape(shape, array):

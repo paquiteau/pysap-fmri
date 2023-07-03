@@ -2,7 +2,6 @@
 from functools import partial
 
 import numpy as np
-from modopt.opt.proximity import SparseThreshold, ProximityParent
 from modopt.opt.cost import costObj
 from modopt.opt.algorithms import POGM, ForwardBackward, ADMM, FastADMM
 from modopt.opt.algorithms.admm import ADMMcostObj
@@ -11,6 +10,7 @@ from modopt.math.matrix import PowerMethod
 
 from ..operators.fourier import TimeFourier, SpaceFourierBase
 from ..operators.svt import FlattenSVT
+from ..operators.utils import InTransformSparseThreshold
 from .base import BaseFMRIReconstructor
 
 
@@ -53,13 +53,6 @@ class JointProx(ProximityParent):
                 operator.cost(input_data)
                 for operator, input_data in zip(self.operators, args[0])
             ]
-        )
-
-
-class InTransformSparseThreshold(SparseThreshold):
-    def _op_method(self, input_data, extra_factor=1.0):
-        return self._linear.adj_op(
-            super()._op_method(self._linear.op(input_data), extra_factor=extra_factor)
         )
 
 
