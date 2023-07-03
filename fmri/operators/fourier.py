@@ -2,11 +2,11 @@
 
 import numpy as np
 import scipy as sp
-
-from .fft import FFT
-from .utils import validate_smaps
-
+from mri.operators.fourier.cartesian import FFT
 from mrinufft import get_operator
+
+# from .fft import FFT
+from .utils import validate_smaps
 
 
 class SpaceFourierBase:
@@ -32,7 +32,6 @@ class SpaceFourierBase:
     """
 
     def __init__(self, shape, n_coils=1, n_frames=1, smaps=None, fourier_ops=None):
-
         self.n_frames = n_frames
         self.n_coils = n_coils
         self.smaps = validate_smaps(shape, n_coils, smaps)
@@ -100,19 +99,21 @@ class CartesianSpaceFourier(SpaceFourierBase):
         for i in range(n_frames):
             self.fourier_ops[i] = FFT(
                 self.shape,
-                mask[i, ...],
                 n_coils=self.n_coils,
-                smaps=self.smaps,
+                mask=mask[i, ...],
                 n_jobs=n_jobs,
             )
 
     def op(self, data):
         """Forward Operator method."""
         adj_data = np.squeeze(
-            np.zeros((self.n_frames, self.n_coils, *self.shape), dtype="complex64")
+            np.zeros((self.n_frames, self.n_coils, *self.shape), dtype=data.dtype)
         )
         for i in range(self.n_frames):
-            adj_data[i] = self.fourier_ops[i].op(data[i])
+            if self.smaps is None:
+                adj_data[i] = self.fourier_ops[i].op(data[i])
+            else:
+                adj_data[i] = self.fourier_ops[i].op(data[i] * self.smaps)
         return adj_data
 
     def adj_op(self, adj_data):
@@ -123,9 +124,19 @@ class CartesianSpaceFourier(SpaceFourierBase):
                 dtype=adj_data.dtype,
             )
         )
-
+        if self.smaps is not None:
+            smaps_norm = np.sum(abs(self.smaps) ** 2, axis=0)
         for i in range(self.n_frames):
-            data[i] = self.fourier_ops[i].adj_op(adj_data[i])
+            if self.smaps is None:
+                data[i] = self.fourier_ops[i].adj_op(adj_data[i])
+            else:
+                data[i] = (
+                    np.sum(
+                        np.conj(self.smaps) * self.fourier_ops[i].adj_op(adj_data[i]),
+                        axis=0,
+                    )
+                    / smaps_norm
+                )
         return data
 
 
@@ -245,27 +256,26 @@ class NonCartesianSpaceFourier(SpaceFourierBase):
 class TimeFourier:
     """Temporal Fourier Transform on fMRI data."""
 
-    def __init__(self, roi=None):
+    def __init__(self, time_axis=0):
         super().__init__()
-        self.roi = roi
+        self.time_axis = time_axis
 
     def op(self, x):
         """Forward Operator method..
 
         Apply the fourier transform on the time axis, voxel wise.
+        Assuming the time dimension is the first one.
+
         """
-        y = np.zeros_like(x)
-        if self.roi is not None:
-            y[:, self.roi] = sp.fft.ifftshift(
-                sp.fft.fft(
-                    sp.fft.fftshift(x[:, self.roi], axes=0), axis=0, norm="ortho"
-                ),
-                axes=0,
-            )
-        else:
-            y = sp.fft.ifftshift(
-                sp.fft.fft(sp.fft.fftshift(x, axes=0), axis=0, norm="ortho"), axes=0
-            )
+
+        y = sp.fft.ifftshift(
+            sp.fft.fft(
+                sp.fft.fftshift(x.reshape(x.shape[0], -1), axes=self.time_axis),
+                axis=self.time_axis,
+                norm="ortho",
+            ),
+            axes=self.time_axis,
+        ).reshape(x.shape)
         return y
 
     def adj_op(self, x):
@@ -273,16 +283,12 @@ class TimeFourier:
 
         Apply the Inverse fourier transform on the time axis, voxel wise
         """
-        y = np.zeros_like(x)
-        if self.roi is not None:
-            y[:, self.roi] = sp.fft.fftshift(
-                sp.fft.ifft(
-                    sp.fft.ifftshift(x[:, self.roi], axes=0), axis=0, norm="ortho"
-                ),
-                axes=0,
-            )
-        else:
-            y = sp.fft.fftshift(
-                sp.fft.ifft(sp.fft.ifftshift(x, axes=0), axis=0, norm="ortho"), axes=0
-            )
+        y = sp.fft.fftshift(
+            sp.fft.ifft(
+                sp.fft.ifftshift(x.reshape(x.shape[0], -1), axes=self.time_axis),
+                axis=self.time_axis,
+                norm="ortho",
+            ),
+            axes=self.time_axis,
+        ).reshape(x.shape)
         return y
