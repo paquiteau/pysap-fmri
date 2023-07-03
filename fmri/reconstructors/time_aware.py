@@ -90,12 +90,14 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
         else:
             self.space_prox_op = space_prox_op
 
-        if time_prox_op is None:
+        if time_prox_op is None and time_linear_op is not None:
             self.time_prox_op = InTransformSparseThreshold(
                 time_linear_op, lambda_time, thresh_type="soft"
             )
-        else:
+        elif time_prox_op is not None:
             self.time_prox_op = time_prox_op
+        else:
+            raise ValueError("Either time_prox_op or time_linear_op must be provided")
 
         self.cost = cost
 
