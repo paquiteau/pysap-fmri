@@ -1,12 +1,14 @@
 """Reconstructor for fMRI data using full reconstruction paradigm."""
 from functools import partial
-
+import scipy as sp
 import numpy as np
+from modopt.opt.proximity import ProximityParent
 from modopt.opt.cost import costObj
 from modopt.opt.algorithms import POGM, ForwardBackward, ADMM, FastADMM
-from modopt.opt.algorithms.admm import ADMMcostObj
+
 from modopt.opt.gradient import GradBasic
 from modopt.math.matrix import PowerMethod
+from modopt.signal.noise import thresh
 
 from ..operators.fourier import TimeFourier, SpaceFourierBase
 from ..operators.svt import FlattenSVT
@@ -108,30 +110,25 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
         grad_step=None,
         optimizer: str = "pogm",
         verbose: bool = False,
-        **kwargs,
     ):
-        if optimizer in ["pogm", "fista"]:
-            self.joint_prox_op = JointProx([self.space_prox_op, self.time_prox_op])
-            self.joint_grad_op = JointGradient(
-                input_data=kspace_data,
-                op=self.fourier_op.op,
-                trans_op=self.fourier_op.adj_op,
-            )
-            lr_s_data = np.zeros(
-                (2, self.fourier_op.n_frames, *self.fourier_op.shape),
-                dtype=kspace_data.dtype,
-            )
-            lr_s_data[0] = self.fourier_op.adj_op(kspace_data) / 2
-            lr_s_data[1] = lr_s_data[0].copy()
-        else:
-            lr_s_data = self.fourier_op.adj_op(kspace_data) / 2
+        return getattr(self, f"_{optimizer}")(kspace_data, max_iter, grad_step)
+
+    def _setup_fb(self, kspace_data, grad_step=None):
+        self.joint_prox_op = JointProx([self.space_prox_op, self.time_prox_op])
+        self.joint_grad_op = JointGradient(
+            input_data=kspace_data,
+            op=self.fourier_op.op,
+            trans_op=self.fourier_op.adj_op,
+        )
+        lr_s_data = np.zeros(
+            (2, self.fourier_op.n_frames, *self.fourier_op.shape),
+            dtype=kspace_data.dtype,
+        )
+        lr_s_data[0] = self.fourier_op.adj_op(kspace_data) / 2
+        lr_s_data[1] = lr_s_data[0].copy()
+
         if self.cost == "auto":
-            if optimizer in ["pogm", "fista"]:
-                self.cost = costObj(
-                    [self.joint_grad_op, self.joint_prox_op], verbose=False
-                )
-            elif optimizer == "admm":
-                self.cost = [self.space_prox_op.cost, self.time_prox_op.cost]
+            self.cost = costObj([self.joint_grad_op, self.joint_prox_op], verbose=False)
 
         if grad_step is None:
             pm = PowerMethod(
@@ -140,74 +137,181 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
                 data_type=kspace_data.dtype,
             )
             grad_step = pm.inv_spec_rad
-        if optimizer == "pogm":
-            opt = POGM(
-                u=lr_s_data,
-                x=lr_s_data.copy(),
-                y=lr_s_data.copy(),
-                z=lr_s_data.copy(),
-                grad=self.joint_grad_op,
-                prox=self.joint_prox_op,
-                cost=self.cost,
-                progress=True,
-                beta_param=grad_step,
-                auto_iterate=False,
-                verbose=False,
-            )
-        elif optimizer == "fista":
-            opt = ForwardBackward(
-                x=lr_s_data,
-                grad=self.joint_grad_op,
-                prox=self.joint_prox_op,
-                cost=self.cost,
-                auto_iterate=False,
-                beta_param=grad_step,
-                verbose=False,
-            )
+        return lr_s_data, grad_step
 
-        elif "admm" in optimizer:
-
-            def subopt(init, obs, prox):
-                """Solve the low rank subproblem"""
-                opt = ForwardBackward(
-                    x=init,
-                    grad=GradBasic(obs, self.fourier_op.op, self.fourier_op.adj_op),
-                    prox=prox,
-                    beta_param=grad_step,
-                    cost=None,
-                    auto_iterate=False,
-                    verbose=False,
-                )
-                opt.iterate(max_iter=10)
-                return opt.x_final
-
-            opt = {"fastadmm": FastADMM, "admm": ADMM}[optimizer](
-                u=lr_s_data,
-                v=lr_s_data.copy(),
-                mu=np.ones_like(kspace_data),
-                A=self.fourier_op,
-                B=self.fourier_op,
-                optimizers=(
-                    partial(subopt, prox=self.space_prox_op),
-                    partial(subopt, prox=self.time_prox_op),
-                ),
-                b=kspace_data,
-                auto_iterate=False,
-                verbose=False,
-            )
-
-        else:
-            raise ValueError(f"Optimizer '{optimizer}' not supported")
+    def _fista(self, kspace_data, max_iter):
+        lr_s_data, grad_step = self._setup_fb(kspace_data)
+        opt = ForwardBackward(
+            x=lr_s_data,
+            grad=self.joint_grad_op,
+            prox=self.joint_prox_op,
+            cost=self.cost,
+            auto_iterate=False,
+            beta_param=grad_step,
+            verbose=False,
+        )
 
         opt.iterate(max_iter=max_iter)
         costs = opt._cost_func._cost_list
 
-        if optimizer in ["pogm", "fista"]:
-            return (
-                opt.x_final[0] + opt.x_final[1],
-                opt.x_final[0],
-                opt.x_final[1],
-                costs,
+        return (
+            opt.x_final[0] + opt.x_final[1],
+            opt.x_final[0],
+            opt.x_final[1],
+            costs,
+        )
+
+    def _pogm(self, kspace_data, max_iter):
+        lr_s_data, grad_step = self._setup_fb(kspace_data)
+
+        opt = POGM(
+            u=lr_s_data,
+            x=lr_s_data.copy(),
+            y=lr_s_data.copy(),
+            z=lr_s_data.copy(),
+            grad=self.joint_grad_op,
+            prox=self.joint_prox_op,
+            cost=self.cost,
+            progress=True,
+            beta_param=grad_step,
+            auto_iterate=False,
+            verbose=False,
+        )
+
+        costs = opt._cost_func._cost_list
+        return (
+            opt.x_final[0] + opt.x_final[1],
+            opt.x_final[0],
+            opt.x_final[1],
+            costs,
+        )
+
+    def _fast_admm(self, kspace_data, max_iter, grad_step):
+        return self._admm(kspace_data, max_iter, grad_step, fast=True)
+
+    def _admm(self, kspace_data, max_iter, grad_step, fast=False):
+        def subopt(init, obs, prox):
+            """Solve the low rank subproblem"""
+            opt = ForwardBackward(
+                x=init,
+                grad=GradBasic(obs, self.fourier_op.op, self.fourier_op.adj_op),
+                prox=prox,
+                beta_param=grad_step,
+                cost=None,
+                auto_iterate=False,
+                verbose=False,
             )
-        else:
-            return opt.u_final + opt.v_final, opt.u_final, opt.v_final, costs
+            opt.iterate(max_iter=10)
+            return opt.x_final
+
+        lr_s_data = self.fourier_op.adj_op(kspace_data) / 2
+        self.cost = [self.space_prox_op.cost, self.time_prox_op.cost]
+        optKlass = FastADMM if fast else ADMM
+        opt = optKlass(
+            u=lr_s_data,
+            v=lr_s_data.copy(),
+            mu=np.ones_like(kspace_data),
+            A=self.fourier_op,
+            B=self.fourier_op,
+            optimizers=(
+                partial(subopt, prox=self.space_prox_op),
+                partial(subopt, prox=self.time_prox_op),
+            ),
+            b=kspace_data,
+            auto_iterate=False,
+            verbose=False,
+        )
+
+        opt.iterate(max_iter=max_iter)
+        costs = opt._cost_func._cost_list
+        return opt.u_final + opt.v_final, opt.u_final, opt.v_final, costs
+
+    def _otazo(self, kspace_data, max_iter, grad_step):
+        from tqdm.auto import tqdm
+
+        nt = len(kspace_data)
+
+        M0 = self.fourier_op.adj_op(kspace_data)
+        norm_M0 = np.linalg.norm(M0.reshape(nt, -1), 2)
+        M = M0.copy()
+        S = np.zeros_like(M)
+        L = np.zeros_like(M)
+        Lprev = M.copy()
+        costs = np.zeros(max_iter)
+        for i in tqdm(range(max_iter)):
+            L = self.space_prox_op.op(M - S)
+            S = self.time_prox_op.op(M - Lprev)
+            resk = self.fourier_op.op(L + S) - kspace_data
+            M = L + S - grad_step * self.fourier_op.adj_op(resk)
+            Lprev = L.copy()
+            costs[i] = (
+                self.space_prox_op.cost(L)
+                + self.time_prox_op.cost(S)
+                + np.linalg.norm(resk.reshape(nt, -1), 2)
+                ** 2  # 0.5 factor omitted as in matlab code.
+            )
+            if np.linalg.norm((M - M0).reshape(nt, -1), 2) < 1e-3 * norm_M0:
+                break
+        costs = costs[: i + 1]
+
+        return (L + S, L, S, costs)
+
+    def _otazo_raw(self, kspace_data, max_iter, grad_step):
+        from tqdm.auto import tqdm
+
+        nt = len(kspace_data)
+
+        def flatten2norm(x):
+            return np.linalg.norm(x.reshape(nt, -1), 2)
+
+        def softthresh(x, thresh):
+            return np.sign(x) * np.maximum(np.abs(x) - thresh, 0)
+
+        M0 = self.fourier_op.adj_op(kspace_data)
+        norm_M0 = np.linalg.norm(M0.reshape(nt, -1), 2)
+        M = M0.copy()
+        S = np.zeros_like(M)
+        L = np.zeros_like(M)
+        Lprev = M.copy()
+        costs = np.zeros(max_iter)
+        lambda_l = self.space_prox_op._threshold
+        lambda_s = self.time_prox_op.weights
+        print(lambda_l, lambda_s)
+        for i in tqdm(range(max_iter)):
+            L = self.space_prox_op.op(M - S)
+            # Ut, St, Vt = sp.linalg.svd((M - S).reshape(nt, -1), full_matrices=False)
+            # St = softthresh(St, np.max(St) * lambda_l)
+            # L = np.reshape((Ut * St) @ Vt, (nt, *self.fourier_op.shape))
+            S = self.time_prox_op.op(M - Lprev)
+
+            # Sf = sp.fft.fft(
+            #     sp.fft.fftshift((M - Lprev).reshape(nt, -1), axes=0),
+            #     axis=0,
+            #     norm="ortho",
+            # )
+            # Sf = softthresh(Sf, lambda_s)
+
+            # S = sp.fft.ifftshift(sp.fft.ifft(Sf, axis=0, norm="ortho"), axes=0).reshape(
+            #     nt, *self.fourier_op.shape
+            # )
+
+            # S = self.time_prox_op._linear.adj_op(
+            #     softthresh(
+            #         self.time_prox_op._linear.op(M - Lprev),
+            #         self.time_prox_op.weights,
+            #     )
+            # )
+            resk = self.fourier_op.op(L + S) - kspace_data
+            M = L + S - grad_step * self.fourier_op.adj_op(resk)
+            Lprev = L.copy()
+            costs[i] = (
+                # lambda_l * np.sum(St)
+                # + lambda_s
+                # * np.sum(np.abs(sp.fft.fft(S.reshape(nt, -1), axis=1, norm="ortho")))
+                +np.linalg.norm(resk.reshape(nt, -1), 2)
+                ** 2  # 0.5 factor omitted as in matlab code.
+            )
+            if np.linalg.norm((M - M0).reshape(nt, -1), 2) < 1e-3 * norm_M0:
+                break
+        costs = costs[: i + 1]
+        return (L + S, L, S, costs)
