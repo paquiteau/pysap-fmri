@@ -53,17 +53,11 @@ class SequentialFMRIReconstructor(BaseFMRIReconstructor):
         """Reconstruct using sequential method."""
         grad_kwargs = {} if grad_kwargs is None else grad_kwargs
         if x_init is None:
-            x_init = np.zeros(self.fourier_op.fourier_ops[0].shape, dtype="complex64")
+            x_init = np.zeros(self.fourier_op.shape, dtype="complex64")
         final_estimate = np.zeros(
-            (len(kspace_data), *self.fourier_op.fourier_ops[0].shape),
+            (len(kspace_data), *self.fourier_op.shape),
             dtype=x_init.dtype,
         )
-        if (nc := self.fourier_op.n_coils > 1) and nc != kspace_data.shape[1]:
-            raise ValueError(
-                "The kspace data should have shape"
-                "N_frame x N_coils x N_samples. "
-                "Also, the number of coils should match."
-            )
 
         next_init = x_init
         progbar_main = trange(len(kspace_data), disable=self.progbar_disable)

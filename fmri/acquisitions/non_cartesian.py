@@ -138,8 +138,6 @@ def process_raw_acquisition(
     shifts: tuple = None,
     n_shot_per_frame: int = 0,
     frame_range: tuple = (0, 0),
-    normalize: str = "pi",
-    save_to: str = "",
 ):
     """Process the data and samples files to create a acquisition object.
 
@@ -200,29 +198,4 @@ def process_raw_acquisition(
     smaps = np.load(smaps_file) if smaps_file is not None else None
     b0_map = np.load(b0_file) if b0_file is not None else None
 
-    if normalize == "pi":
-        samples *= 2 * np.pi
-
-    # Export the data structure
-    n_frames, n_coils, n_samples_per_frame = data.shape
-    acq_info = AcquisitionInfo(
-        normalize=normalize,
-        n_frames=n_frames,
-        n_coils=n_coils,
-        n_shot_per_frame=n_shot_per_frame,
-        n_samples_per_frame=n_samples_per_frame,
-        n_samples_per_shot=n_samples_per_frame // n_shot_per_frame,
-        **acq_info_d,
-    )
-
-    acq = Acquisition(
-        infos=acq_info,
-        samples=samples,
-        data=data,
-        density=None,
-        b0_map=b0_map,
-        smaps=smaps,
-    )
-    if save_to != "":
-        acq.save(save_to)
-    return acq
+    return samples, data, b0_map, smaps
