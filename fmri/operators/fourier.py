@@ -65,7 +65,7 @@ class SpaceFourierBase:
         raise NotImplementedError
 
 
-class CartesianSpaceFourier(SpaceFourierBase):
+class CartesianSpaceFourierGlobal:
     """Cartesian Fourier Transform on fMRI data.
 
     Parameters
@@ -83,7 +83,87 @@ class CartesianSpaceFourier(SpaceFourierBase):
     """
 
     def __init__(self, shape, mask=None, n_coils=1, n_frames=1, smaps=None, n_jobs=-1):
-        super().__init__(shape, n_coils, n_frames, smaps=smaps)
+        self.shape = shape
+        self.n_coils = n_coils
+        self.n_frames = n_frames
+        self.smaps = smaps
+        self.uses_sense = smaps is not None
+        self.n_jobs = n_jobs
+        if mask is None:
+            self.mask = np.ones(n_frames)
+        elif mask.shape == shape:
+            # common mask for all frames.
+            self.mask = [mask] * n_frames
+        elif mask.shape == (n_frames, *shape):
+            # custom mask for every frame.
+            self.mask = mask
+        else:
+            raise ValueError("incompatible mask format")
+
+    def op(self, img):
+        """Forward Operator method."""
+        img2 = np.zeros((self.n_frames, self.n_coils, *self.shape), dtype=img.dtype)
+        for ii in range(self.n_coils):
+            for i in range(self.n_frames):
+                img2[i, ii, ...] = img[i] * self.smaps[ii]
+
+        axes = tuple(np.arange(2, img2.ndim))
+        multicoil_ksp = sp.fft.ifftshift(
+            sp.fft.ifftn(
+                sp.fft.fftshift(img2, axes=axes),
+                axes=axes,
+                norm="ortho",
+                workers=self.n_jobs,
+            ),
+            axes=axes,
+        )
+        multicoil_ksp = multicoil_ksp * self.mask[:, None, ...]
+        return multicoil_ksp
+
+    def adj_op(self, x):
+        x = x * self.mask[:, None, ...]
+        axes = tuple(np.arange(2, x.ndim))
+        img = sp.fft.fftshift(
+            sp.fft.fftn(
+                sp.fft.ifftshift(x, axes=axes),
+                axes=axes,
+                norm="ortho",
+                workers=self.n_jobs,
+            ),
+            axes=axes,
+        )
+        return np.sum(img * self.smaps[None, ...].conj(), axis=1)
+
+
+class FFT_Sense(FFT):
+    def __init__(self, shape, n_coils=1, mask=None, smaps=None, n_jobs=1):
+        super().__init__(shape, n_coils=n_coils, mask=mask, n_jobs=n_jobs)
+        self.smaps = smaps
+
+    @property
+    def uses_sense(self):
+        return self.smaps is not None
+
+    def op(self, img):
+        """Forward Operator method."""
+        img2 = np.zeros((self.n_coils, *self.shape), dtype=img.dtype)
+        for i in range(self.n_coils):
+            img2[i, ...] = img * self.smaps[i]
+        return super().op(img2)
+
+    def adj_op(self, x):
+        x = super().adj_op(x)
+        return np.sum(x * self.smaps.conj(), axis=0)
+
+
+class CartesianSpaceFourier(SpaceFourierBase):
+    def __init__(self, shape, mask, n_coils=1, n_frames=1, smaps=None, n_jobs=1):
+        self.shape = shape
+        self.n_coils = n_coils
+        self.n_frames = n_frames
+        self.smaps = smaps
+        self.uses_sense = smaps is not None
+        self.n_jobs = n_jobs
 
         if mask is None:
             self.mask = np.ones(n_frames)
@@ -96,24 +176,23 @@ class CartesianSpaceFourier(SpaceFourierBase):
         else:
             raise ValueError("incompatible mask format")
 
-        for i in range(n_frames):
-            self.fourier_ops[i] = FFT(
-                self.shape,
-                n_coils=self.n_coils,
-                mask=mask[i, ...],
-                n_jobs=n_jobs,
+        self.fourier_ops = [
+            FFT_Sense(
+                shape, n_coils=n_coils, mask=self.mask[i], smaps=smaps, n_jobs=n_jobs
             )
+            for i in range(n_frames)
+        ]
 
     def op(self, data):
         """Forward Operator method."""
         adj_data = np.squeeze(
-            np.zeros((self.n_frames, self.n_coils, *self.shape), dtype=data.dtype)
+            np.zeros(
+                (self.n_frames, self.n_coils, *self.shape),
+                dtype=data.dtype,
+            )
         )
         for i in range(self.n_frames):
-            if self.smaps is None:
-                adj_data[i] = self.fourier_ops[i].op(data[i])
-            else:
-                adj_data[i] = self.fourier_ops[i].op(data[i] * self.smaps)
+            adj_data[i] = self.fourier_ops[i].op(data[i])
         return adj_data
 
     def adj_op(self, adj_data):
@@ -124,19 +203,9 @@ class CartesianSpaceFourier(SpaceFourierBase):
                 dtype=adj_data.dtype,
             )
         )
-        if self.smaps is not None:
-            smaps_norm = np.sum(abs(self.smaps) ** 2, axis=0)
+
         for i in range(self.n_frames):
-            if self.smaps is None:
-                data[i] = self.fourier_ops[i].adj_op(adj_data[i])
-            else:
-                data[i] = (
-                    np.sum(
-                        np.conj(self.smaps) * self.fourier_ops[i].adj_op(adj_data[i]),
-                        axis=0,
-                    )
-                    / smaps_norm
-                )
+            data[i] = self.fourier_ops[i].adj_op(adj_data[i])
         return data
 
 
@@ -203,30 +272,6 @@ class NonCartesianSpaceFourier(SpaceFourierBase):
                 **kwargs,
             )
 
-    @classmethod
-    def from_acquisition(cls, acquisition, orc=True, **kwargs):
-        """Generate the operator from a acquisition object."""
-        if "density" in kwargs.keys():
-            density = kwargs.pop("density")
-        else:
-            density = acquisition.density
-        fop = cls(
-            samples=acquisition.samples,
-            shape=acquisition.infos.shape,
-            n_coils=acquisition.infos.n_coils,
-            n_frames=acquisition.infos.n_frames,
-            smaps=acquisition.smaps,
-            density=density,
-            **kwargs,
-        )
-        if acquisition.infos.n_interpolator > 0 and orc:
-            fop.add_field_correction(
-                acquisition.b0_map,
-                acquisition.image_field_correction,
-                acquisition.kspace_field_correction,
-            )
-        return fop
-
     def op(self, data):
         """Forward Operator method."""
         adj_data = np.squeeze(
@@ -251,44 +296,3 @@ class NonCartesianSpaceFourier(SpaceFourierBase):
         for i in range(self.n_frames):
             data[i] = self.fourier_ops[i].adj_op(adj_data[i])
         return data
-
-
-class TimeFourier:
-    """Temporal Fourier Transform on fMRI data."""
-
-    def __init__(self, time_axis=0):
-        super().__init__()
-        self.time_axis = time_axis
-
-    def op(self, x):
-        """Forward Operator method..
-
-        Apply the fourier transform on the time axis, voxel wise.
-        Assuming the time dimension is the first one.
-
-        """
-
-        y = sp.fft.ifftshift(
-            sp.fft.fft(
-                sp.fft.fftshift(x.reshape(x.shape[0], -1), axes=self.time_axis),
-                axis=self.time_axis,
-                norm="ortho",
-            ),
-            axes=self.time_axis,
-        ).reshape(x.shape)
-        return y
-
-    def adj_op(self, x):
-        """Adjoint Operator method.
-
-        Apply the Inverse fourier transform on the time axis, voxel wise
-        """
-        y = sp.fft.fftshift(
-            sp.fft.ifft(
-                sp.fft.ifftshift(x.reshape(x.shape[0], -1), axes=self.time_axis),
-                axis=self.time_axis,
-                norm="ortho",
-            ),
-            axes=self.time_axis,
-        ).reshape(x.shape)
-        return y

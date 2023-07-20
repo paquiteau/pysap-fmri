@@ -72,26 +72,42 @@ class WaveletTimeOperator(TimeOperator):
         return self.wavelet.synthesis()
 
 
-class FourierTimeOperator(TimeOperator):
-    def __init__(self, shape, n_frames, **kwargs):
-        """Initialize the operator.
+class TimeFourier:
+    """Temporal Fourier Transform on fMRI data."""
 
-        Parameters
-        ----------
-        shape: tuple
-            The shape of the data.
-        n_frames: int
-            The number of frames in the data.
-        **kwargs: dict
-            Extra arguments for the wavelet object.
+    def __init__(self, time_axis=0):
+        super().__init__()
+        self.time_axis = time_axis
+
+    def op(self, x):
+        """Forward Operator method..
+
+        Apply the fourier transform on the time axis, voxel wise.
+        Assuming the time dimension is the first one.
+
         """
-        self.shape = shape
-        self.n_frames = n_frames
-        self.op_func = self._op_method
-        self.adj_op_func = self._adj_op_method
 
-    def _op_method(self, data):
-        return np.fft.ifftshift(np.fft.fft(np.fft.fftshift(data), norm="ortho"))
+        y = sp.fft.ifftshift(
+            sp.fft.fft(
+                sp.fft.fftshift(x.reshape(x.shape[0], -1), axes=self.time_axis),
+                axis=self.time_axis,
+                norm="ortho",
+            ),
+            axes=self.time_axis,
+        ).reshape(x.shape)
+        return y
 
-    def _adj_op_method(self, data):
-        return np.fft.ifftshift(np.fft.ifft(np.fft.fftshift(data), norm="ortho"))
+    def adj_op(self, x):
+        """Adjoint Operator method.
+
+        Apply the Inverse fourier transform on the time axis, voxel wise
+        """
+        y = sp.fft.fftshift(
+            sp.fft.ifft(
+                sp.fft.ifftshift(x.reshape(x.shape[0], -1), axes=self.time_axis),
+                axis=self.time_axis,
+                norm="ortho",
+            ),
+            axes=self.time_axis,
+        ).reshape(x.shape)
+        return y
