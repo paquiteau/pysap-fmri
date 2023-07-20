@@ -56,6 +56,7 @@ def mosaic(
     img_w=3,
     fig=None,
     cmap="gray",
+    axis_label=None,
 ):
     """Plot a 3D array as a tiled grid of 2D images.
 
@@ -95,7 +96,7 @@ def mosaic(
         axis = 3 + axis
 
     slicer = [slice(None), slice(None), slice(None)]
-    axis_label = ["t", "x", "y", "z"]
+    axis_label = axis_label or ["t", "x", "y", "z"][axis]
 
     if samples == -1:
         samples_loc = np.arange(array.shape[axis])
@@ -146,12 +147,15 @@ def mosaic(
         ax.text(
             0.05,
             0.95,
-            f"{axis_label[axis]}={step*i}",
+            f"{axis_label}={step*i}",
             ha="left",
             va="top",
             transform=ax.transAxes,
             bbox=dict(boxstyle="square, pad=0", fc="white", ec="none"),
         )
+    # remove unused axis
+    for ax in axs[len(array_list) :]:
+        ax.remove()
     return fig
 
 
