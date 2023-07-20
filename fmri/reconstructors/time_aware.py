@@ -278,29 +278,29 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
         lambda_s = self.time_prox_op.weights
         print(lambda_l, lambda_s)
         for i in tqdm(range(max_iter)):
-            L = self.space_prox_op.op(M - S)
-            # Ut, St, Vt = sp.linalg.svd((M - S).reshape(nt, -1), full_matrices=False)
-            # St = softthresh(St, np.max(St) * lambda_l)
-            # L = np.reshape((Ut * St) @ Vt, (nt, *self.fourier_op.shape))
-            S = self.time_prox_op.op(M - Lprev)
+            # L = self.space_prox_op.op(M - S)
+            Ut, St, Vt = sp.linalg.svd((M - S).reshape(nt, -1), full_matrices=False)
+            St = softthresh(St, np.max(St) * lambda_l)
+            L = np.reshape((Ut * St) @ Vt, (nt, *self.fourier_op.shape))
+            # S = self.time_prox_op.op(M - Lprev)
 
-            # Sf = sp.fft.fft(
-            #     sp.fft.fftshift((M - Lprev).reshape(nt, -1), axes=0),
-            #     axis=0,
-            #     norm="ortho",
-            # )
-            # Sf = softthresh(Sf, lambda_s)
+            Sf = sp.fft.fft(
+                sp.fft.fftshift((M - Lprev).reshape(nt, -1), axes=0),
+                axis=0,
+                norm="ortho",
+            )
+            Sf = softthresh(Sf, lambda_s)
 
-            # S = sp.fft.ifftshift(sp.fft.ifft(Sf, axis=0, norm="ortho"), axes=0).reshape(
-            #     nt, *self.fourier_op.shape
-            # )
+            S = sp.fft.ifftshift(sp.fft.ifft(Sf, axis=0, norm="ortho"), axes=0).reshape(
+                nt, *self.fourier_op.shape
+            )
 
-            # S = self.time_prox_op._linear.adj_op(
-            #     softthresh(
-            #         self.time_prox_op._linear.op(M - Lprev),
-            #         self.time_prox_op.weights,
-            #     )
-            # )
+            S = self.time_prox_op._linear.adj_op(
+                softthresh(
+                    self.time_prox_op._linear.op(M - Lprev),
+                    self.time_prox_op.weights,
+                )
+            )
             resk = self.fourier_op.op(L + S) - kspace_data
             M = L + S - grad_step * self.fourier_op.adj_op(resk)
             Lprev = L.copy()
