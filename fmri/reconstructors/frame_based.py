@@ -12,7 +12,7 @@ from .base import BaseFMRIReconstructor
 from .utils import OPTIMIZERS, initialize_opt
 
 
-class SequentialFMRIReconstructor(BaseFMRIReconstructor):
+class SequentialReconstructor(BaseFMRIReconstructor):
     """Sequential Reconstruction of fMRI data.
 
     Time frame are reconstructed in a row, the previous frame estimation
