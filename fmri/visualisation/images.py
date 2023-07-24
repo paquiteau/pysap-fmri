@@ -47,6 +47,29 @@ def _fit_grid(n_tiles):
     return n_rows, n_cols
 
 
+def _make_grid_plot(n_samples, n_rows=-1, n_cols=-1, aspect_ratio=1.0, img_w=3):
+    if n_rows == -1 and n_cols != -1:
+        while n_rows * n_cols < n_samples:
+            n_rows += 1
+    elif n_rows != -1 and n_cols == -1:
+        while n_rows * n_cols < n_samples:
+            n_cols += 1
+    elif n_rows == -1 and n_cols == -1:
+        n_rows, n_cols = _fit_grid(n_samples)
+    elif n_rows != -1 and n_cols != -1 and n_rows * n_cols < n_samples:
+        raise ValueError("The grid is not big enough to fit all samples.")
+
+    fig = plt.figure(figsize=(n_cols * img_w, n_rows * img_w * aspect_ratio))
+    gs = fig.add_gridspec(
+        n_rows,
+        n_cols,
+        hspace=0.01,
+        wspace=0.01,
+    )
+    axs_2d = gs.subplots(squeeze=False)
+    return fig, axs_2d
+
+
 def mosaic(
     array,
     axis=-1,

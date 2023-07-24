@@ -10,7 +10,8 @@ from modopt.opt.gradient import GradBasic
 from modopt.math.matrix import PowerMethod
 from modopt.signal.noise import thresh
 
-from ..operators.fourier import TimeFourier, SpaceFourierBase
+from ..operators.fourier import SpaceFourierBase
+from ..operators.time_op import TimeOperator
 from ..operators.svt import FlattenSVT
 from ..operators.utils import InTransformSparseThreshold
 from .base import BaseFMRIReconstructor
@@ -79,7 +80,7 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
     def __init__(
         self,
         fourier_op: SpaceFourierBase,
-        time_linear_op: TimeFourier = None,
+        time_linear_op: TimeOperator = None,
         time_prox_op: ProximityParent = None,
         space_prox_op: ProximityParent = None,
         lambda_space: float = 0.1,
@@ -139,8 +140,8 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
             grad_step = pm.inv_spec_rad
         return lr_s_data, grad_step
 
-    def _fista(self, kspace_data, max_iter):
-        lr_s_data, grad_step = self._setup_fb(kspace_data)
+    def _fista(self, kspace_data, max_iter, grad_step):
+        lr_s_data, grad_step = self._setup_fb(kspace_data, grad_step)
         opt = ForwardBackward(
             x=lr_s_data,
             grad=self.joint_grad_op,
@@ -161,8 +162,8 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
             costs,
         )
 
-    def _pogm(self, kspace_data, max_iter):
-        lr_s_data, grad_step = self._setup_fb(kspace_data)
+    def _pogm(self, kspace_data, max_iter, grad_step):
+        lr_s_data, grad_step = self._setup_fb(kspace_data, grad_step)
 
         opt = POGM(
             u=lr_s_data,
@@ -177,7 +178,7 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
             auto_iterate=False,
             verbose=False,
         )
-
+        opt.iterate(max_iter=max_iter)
         costs = opt._cost_func._cost_list
         return (
             opt.x_final[0] + opt.x_final[1],
@@ -304,13 +305,11 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
             resk = self.fourier_op.op(L + S) - kspace_data
             M = L + S - grad_step * self.fourier_op.adj_op(resk)
             Lprev = L.copy()
-            costs[i] = (
-                # lambda_l * np.sum(St)
-                # + lambda_s
-                # * np.sum(np.abs(sp.fft.fft(S.reshape(nt, -1), axis=1, norm="ortho")))
-                +np.linalg.norm(resk.reshape(nt, -1), 2)
-                ** 2  # 0.5 factor omitted as in matlab code.
-            )
+            # lambda_l * np.sum(St)
+            # + lambda_s
+            # * np.sum(np.abs(sp.fft.fft(S.reshape(nt, -1), axis=1, norm="ortho")))
+            # !! 0.5 factor was omitted as in matlab code.
+            costs[i] = 0.5 * np.linalg.norm(resk.reshape(nt, -1), 2) ** 2
             if np.linalg.norm((M - M0).reshape(nt, -1), 2) < 1e-3 * norm_M0:
                 break
         costs = costs[: i + 1]

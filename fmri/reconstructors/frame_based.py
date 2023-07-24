@@ -78,7 +78,7 @@ class SequentialReconstructor(BaseFMRIReconstructor):
                 prox_op=self.space_prox_op,
                 x_init=next_init,
                 synthesis_init=False,
-                opt_kwargs={"cost": None},
+                opt_kwargs={"cost": "auto"},
                 metric_kwargs={},
             )
             # if no reset, the internal state is kept.

@@ -1,7 +1,8 @@
 """Operator applied voxel wise on the timeserie data."""
 import numpy as np
+import scipy as sp
 import pysap
-from pysap.utils import flatten, unflatten
+from pysap.base.utils import flatten, unflatten
 
 
 class TimeOperator:

@@ -9,15 +9,21 @@ Modopt.opt.algorithms
 
 import numpy as np
 from modopt.opt.algorithms import POGM, ForwardBackward
+from modopt.opt.cost import costObj
+
+OPTIMIZERS = {"pogm": "synthesis", "fista": "analysis", None: None}
 
 
-OPTIMIZERS = {'pogm': 'synthesis',
-              'fista': 'analysis',
-              None: None}
-
-
-def initialize_opt(opt_name, grad_op, linear_op, prox_op,
-                   x_init=None, synthesis_init=False, opt_kwargs=None, metric_kwargs=None):
+def initialize_opt(
+    opt_name,
+    grad_op,
+    linear_op,
+    prox_op,
+    x_init=None,
+    synthesis_init=False,
+    opt_kwargs=None,
+    metric_kwargs=None,
+):
     """
     Initialize an Optimizer with the suitable parameters.
 
@@ -43,20 +49,25 @@ def initialize_opt(opt_name, grad_op, linear_op, prox_op,
 
     """
     if x_init is None:
-        x_init = np.squeeze(np.zeros(
-            (grad_op.fourier_op.n_coils, *grad_op.fourier_op.shape),
-            dtype="complex64"))
+        x_init = np.squeeze(
+            np.zeros(
+                (grad_op.fourier_op.n_coils, *grad_op.fourier_op.shape),
+                dtype="complex64",
+            )
+        )
 
-    if not synthesis_init and hasattr(grad_op, 'linear_op'):
+    if not synthesis_init and hasattr(grad_op, "linear_op"):
         alpha_init = grad_op.linear_op.op(x_init)
-    elif synthesis_init and not hasattr(grad_op, 'linear_op'):
+    elif synthesis_init and not hasattr(grad_op, "linear_op"):
         x_init = linear_op.adj_op(x_init)
-    elif not synthesis_init and hasattr(grad_op, 'linear_op'):
+    elif not synthesis_init and hasattr(grad_op, "linear_op"):
         alpha_init = x_init
     opt_kwargs = opt_kwargs or dict()
     metric_kwargs = metric_kwargs or dict()
 
     beta = grad_op.inv_spec_rad
+    if opt_kwargs.get("cost", None) == "auto":
+        opt_kwargs["cost"] = costObj([grad_op, prox_op], verbose=False)
     if opt_name == "pogm":
         opt = POGM(
             u=alpha_init,
@@ -67,10 +78,10 @@ def initialize_opt(opt_name, grad_op, linear_op, prox_op,
             prox=prox_op,
             linear=linear_op,
             beta_param=beta,
-            sigma_bar=opt_kwargs.pop('sigma_bar', 0.96),
+            sigma_bar=opt_kwargs.pop("sigma_bar", 0.96),
             auto_iterate=opt_kwargs.pop("auto_iterate", False),
             **opt_kwargs,
-            **metric_kwargs
+            **metric_kwargs,
         )
     elif opt_name == "fista":
         opt = ForwardBackward(
