@@ -8,7 +8,6 @@ from modopt.opt.algorithms import ForwardBackward, POGM
 import numpy as np
 
 from .proxtv import tv_taut_string, vec_tv_mm, vec_gtv
-from .svt import SingularValueThreshold
 
 
 class ProxTV1d:
@@ -206,7 +205,8 @@ class ProxTV1d:
 
 
 class MultiScaleLowRankSparse:
-    """A double proximal operator that regularize a series of image using spatial wavelet.
+    """
+    A double proximal operator that regularize a series of image using spatial wavelet.
 
     Two priors are combined: A Low-Rank Prior on the approximation coefficients
     and a Sparse Prior on the details coefficients.

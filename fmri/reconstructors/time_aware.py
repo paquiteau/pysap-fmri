@@ -8,7 +8,6 @@ from modopt.opt.algorithms import POGM, ForwardBackward, ADMM, FastADMM
 
 from modopt.opt.gradient import GradBasic
 from modopt.math.matrix import PowerMethod
-from modopt.signal.noise import thresh
 
 from ..operators.fourier import SpaceFourierBase
 from ..operators.time_op import TimeOperator
@@ -94,6 +93,7 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
             self.space_prox_op = space_prox_op
 
         if time_prox_op is None and time_linear_op is not None:
+            self.lambda_time = lambda_time
             self.time_prox_op = InTransformSparseThreshold(
                 time_linear_op, lambda_time, thresh_type="soft"
             )
@@ -112,6 +112,8 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
         optimizer: str = "pogm",
         verbose: bool = False,
     ):
+        self.time_prox_op.weights = self.lambda_time
+
         return getattr(self, f"_{optimizer}")(kspace_data, max_iter, grad_step)
 
     def _setup_fb(self, kspace_data, grad_step=None):

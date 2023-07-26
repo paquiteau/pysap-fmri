@@ -1,4 +1,5 @@
 """Utilities for fMRI Operators."""
+import numpy as np
 from modopt.opt.proximity import SparseThreshold
 from modopt.opt.gradient import GradBasic
 
@@ -6,6 +7,8 @@ from fmri.utils import DimensionMismatchError
 
 
 class InTransformSparseThreshold(SparseThreshold):
+    """Sparse Thresholding in a transform domain."""
+
     def _op_method(self, input_data, extra_factor=1.0):
         return self._linear.adj_op(
             super()._op_method(self._linear.op(input_data), extra_factor=extra_factor)
@@ -59,3 +62,40 @@ def make_gradient_operator(fourier_op, obs_data):
         )
 
     return grad_op
+
+
+# TODO Make it faster with numba and assume the data is already sorted.
+
+
+def sigma_mad(data):
+    return np.median(np.abs(data[:] - np.median(data[:]))) / 0.6745
+
+
+def sure_est(data):
+    """Return an estimation of the threshold computed using the SURE method.
+
+    The computation of the estimator is based on the formulation of `cite:donoho1994`
+    and the efficient implementation of [#]_
+
+    Parameters
+    ----------
+    data: numpy.array
+        Noisy Data with unit standard deviation.
+    Returns
+    -------
+    float
+        Value of the threshold minimizing the SURE estimator.
+
+    References
+    ----------
+    .. [#] https://pyyawt.readthedocs.io/_modules/pyyawt/denoising.html#ValSUREThresh
+    """
+    dataf = data.flatten()
+    n = dataf.size
+    data_sorted = np.sort(np.abs(dataf)) ** 2
+    idx = np.arange(n - 1, -1, -1)
+    tmp = np.cumsum(data_sorted) + idx * data_sorted
+
+    risk = (n - (2 * np.arange(n)) + tmp) / n
+    ibest = np.argmin(risk)
+    return np.sqrt(data_sorted[ibest])
