@@ -122,7 +122,7 @@ class CartesianSpaceFourierGlobal:
 
     def adj_op(self, x):
         x = x * self.mask[:, None, ...]
-        axes = tuple(np.arange(2, x.ndim))
+        axes = tuple(np.arange(2, x.ndim + 2))
         img = sp.fft.fftshift(
             sp.fft.fftn(
                 sp.fft.ifftshift(x, axes=axes),
@@ -132,7 +132,10 @@ class CartesianSpaceFourierGlobal:
             ),
             axes=axes,
         )
-        return np.sum(img * self.smaps[None, ...].conj(), axis=1)
+        if self.smaps:
+            return np.sum(img * self.smaps[None, ...].conj(), axis=1)
+        else:
+            return img
 
 
 class FFT_Sense(FFT):
