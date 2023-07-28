@@ -112,8 +112,6 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
         optimizer: str = "pogm",
         verbose: bool = False,
     ):
-        self.time_prox_op.weights = self.lambda_time
-
         return getattr(self, f"_{optimizer}")(kspace_data, max_iter, grad_step)
 
     def _setup_fb(self, kspace_data, grad_step=None):
