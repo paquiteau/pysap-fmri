@@ -174,7 +174,7 @@ def mosaic(
             ha="left",
             va="top",
             transform=ax.transAxes,
-            bbox=dict(boxstyle="square, pad=0", fc="white", ec="none"),
+            bbox=dict(boxstyle="square, pad=0", fc=fig.get_facecolor(), ec="none"),
         )
     # remove unused axis
     for ax in axs[len(array_list) :]:
