@@ -65,7 +65,7 @@ class WaveletTimeOperator(TimeOperator):
     def _op_method(self, data):
         self.wavelet.data = data
         self.wavelet.analysis()
-        print(self.wavelet.analysis_data.shape)
+ #       print(self.wavelet.analysis_data.shape)
         return flatten(self.wavelet.analysis_data)
 
     def _adj_op_method(self, data):
