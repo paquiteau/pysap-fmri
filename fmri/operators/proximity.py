@@ -206,7 +206,7 @@ class ProxTV1d:
 
 class MultiScaleLowRankSparse:
     """
-    A double proximal operator that regularize a series of image using spatial wavelet.
+    A double proximal operator that regularizes a series of image using spatial wavelet.
 
     Two priors are combined: A Low-Rank Prior on the approximation coefficients
     and a Sparse Prior on the details coefficients.
