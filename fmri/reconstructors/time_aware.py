@@ -99,6 +99,10 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
             )
         elif time_prox_op is not None:
             self.time_prox_op = time_prox_op
+            if time_linear_op is None:
+                self.time_linear_op = Identity
+            else:
+                self.time_linear_op = time_linear_op
         else:
             raise ValueError("Either time_prox_op or time_linear_op must be provided")
 

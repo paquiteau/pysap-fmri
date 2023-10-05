@@ -20,24 +20,24 @@ class TimeOperator:
         self.adj_op_func = adj_op
         self.shape = shape
         self.n_frames = n_frames
+        self.n_frame_op = n_frames
 
     def op(self, data):
         """Apply the forward operator."""
         data_flatten = data.reshape(self.n_frames, -1)
-        data_ret = [None] * self.n_frames
+        data_ret = np.zeros((self.n_frames_op, np.prod(self.shape)), dtype=data.dtype)
 
-        for i in range(self.n_frames):
-            data_ret[i] = self.op_func(data_flatten[i])
-        data_ret = np.array(data_ret)
-        print(data_ret.shape)
+        for i in range(np.prod(self.shape)):
+            data_ret[:, i] = self.op_func(data_flatten[:, i])
         return data_ret
 
     def adj_op(self, data):
         """Apply the adjoint operator."""
-        data_ret = np.zeros((self.n_frames, *self.shape))
+        data_ret = np.zeros((self.n_frames, np.prod(self.shape)), dtype=data.dtype)
 
-        for i in range(self.n_frames):
-            data_ret[i] = self.adj_op_func(data[i])
+        for i in range(np.prod(self.shape)):
+            data_ret[:, i] = self.adj_op_func(data[:, i])
+        data_ret = data_ret.reshape(self.shape)
         return data_ret
 
 
@@ -62,11 +62,12 @@ class WaveletTimeOperator(TimeOperator):
         self.op_func = self._op_method
         self.adj_op_func = self._adj_op_method
 
+        self.n_frames_op = len(self._op_method(np.zeros((self.n_frames, 1))))
+
     def _op_method(self, data):
         self.wavelet.data = data
         self.wavelet.analysis()
-        print(self.wavelet.analysis_data.shape)
-        return flatten(self.wavelet.analysis_data)
+        return flatten(self.wavelet.analysis_data)[0]
 
     def _adj_op_method(self, data):
         self.wavelet.analysis_data = unflatten(data, self.wavelet.coeffs_shape)

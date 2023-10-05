@@ -7,6 +7,9 @@ from .fft import fft, ifft
 
 
 class SpaceFourierBase(ABC):
+    def __init__(self):
+        self.smaps = None
+
     @abstractmethod
     def op(self, img):
         pass
