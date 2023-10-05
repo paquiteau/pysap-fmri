@@ -1,8 +1,8 @@
 """Operator applied voxel wise on the timeserie data."""
 import numpy as np
 import scipy as sp
-import pysap
-from pysap.base.utils import flatten, unflatten
+
+from .wavelet import WaveletTransform
 
 
 class TimeOperator:
@@ -42,8 +42,17 @@ class TimeOperator:
 
 
 class WaveletTimeOperator(TimeOperator):
-    def __init__(self, wavelet_name, shape, n_frames, **kwargs):
-        """Initialize the operator.
+    def __init__(
+        self,
+        n_frames,
+        wavelet_name,
+        shape,
+        level=4,
+        n_jobs=1,
+        backend="threading",
+        mode="symmetric",
+    ):
+        """1D Wavelet Transform applied on each voxel on the time axis
 
         Parameters
         ----------
@@ -56,24 +65,20 @@ class WaveletTimeOperator(TimeOperator):
         **kwargs: dict
             Extra arguments for the wavelet object.
         """
-        self.wavelet = pysap.load_transform(wavelet_name)(**kwargs)
+        # TODO Use np.prod(shape) as n_coils and benchmark.
+        self._wavelet_op = WaveletTransform(
+            wavelet_name,
+            shape=n_frames,
+            level=level,
+            n_coils=1,
+            decimated=True,
+            backend=backend,
+            mode=mode,
+        )
         self.shape = shape
         self.n_frames = n_frames
-        self.op_func = self._op_method
-        self.adj_op_func = self._adj_op_method
-
-        self.n_frames_op = len(self._op_method(np.zeros((self.n_frames))))
-        print(self.n_frames_op)
-
-    def _op_method(self, data):
-        self.wavelet.data = data
-        self.wavelet.analysis()
-        #       print(self.wavelet.analysis_data.shape)
-        return flatten(self.wavelet.analysis_data)
-
-    def _adj_op_method(self, data):
-        self.wavelet.analysis_data = unflatten(data, self.wavelet.coeffs_shape)
-        return self.wavelet.synthesis()
+        self.op_func = self._wavelet_op.op
+        self.adj_op_func = self._wavelet_op.adj_op
 
 
 class TimeFourier:
