@@ -3,8 +3,6 @@ import numpy as np
 from modopt.opt.proximity import SparseThreshold
 from modopt.opt.gradient import GradBasic
 
-from fmri.utils import DimensionMismatchError
-
 
 class InTransformSparseThreshold(SparseThreshold):
     """Sparse Thresholding in a transform domain."""
@@ -18,9 +16,7 @@ class InTransformSparseThreshold(SparseThreshold):
 def validate_shape(shape, array):
     """Validate shape of array."""
     if array.shape != tuple(shape):
-        raise DimensionMismatchError(
-            f"array should have dimension {shape}, but has {array.shape}"
-        )
+        raise ValueError(f"array should have dimension {shape}, but has {array.shape}")
     return array
 
 

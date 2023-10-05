@@ -17,12 +17,6 @@ def fmri_ssos(img):
     return ssos(img, axis=0)
 
 
-class DimensionMismatchError(ValueError):
-    """Custom Exception for Dimension mismatch."""
-
-    pass
-
-
 def validate_rng(rng=None):
     """Validate Random Number Generator."""
     if isinstance(rng, int):
