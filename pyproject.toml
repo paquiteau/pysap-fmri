@@ -18,11 +18,20 @@ requires = ["setuptools", "wheel"]
 # Tool configuration #
 ######################
 
-[tool.flake8]
-docstring-convention = "numpy"
-# D105: docstring for magic methods
-# E203: space around slice
-ignore = ["D105", "E203"]
+
+#linting using ruff
+[tool.ruff]
+src = ["src", "tests"]
+select = ["E", "F", "B", "Q", "UP", "D"]
+
+ignore = [
+"B905", #zip() without an explicit strict= parameter
+"B028", #No explicit stacklevel keyword argument found
+]
+extend-exclude = [ "example_*.py" ]
+
+[tool.ruff.pydocstyle]
+convention="numpy"
 
 [tool.coverage.run]
 omit = ["*tests*"]
