@@ -62,12 +62,14 @@ class WaveletTimeOperator(TimeOperator):
         self.op_func = self._op_method
         self.adj_op_func = self._adj_op_method
 
-        self.n_frames_op = len(self._op_method(np.zeros((self.n_frames, 1))))
+        self.n_frames_op = len(self._op_method(np.zeros((self.n_frames))))
+        print(self.n_frames_op)
 
     def _op_method(self, data):
         self.wavelet.data = data
         self.wavelet.analysis()
-        return flatten(self.wavelet.analysis_data)[0]
+        #       print(self.wavelet.analysis_data.shape)
+        return flatten(self.wavelet.analysis_data)
 
     def _adj_op_method(self, data):
         self.wavelet.analysis_data = unflatten(data, self.wavelet.coeffs_shape)
