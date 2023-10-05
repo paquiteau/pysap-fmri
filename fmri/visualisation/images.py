@@ -3,7 +3,7 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ..utils import fmri_ssos
+from .utils import fmri_ssos
 
 
 def flat_matrix_view(fmri_img, ax=None, figsize=None, cmap="gray"):
