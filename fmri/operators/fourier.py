@@ -7,23 +7,28 @@ and RepeatOperator.
 import numpy as np
 from abc import ABC, abstractmethod
 
-from utils.fft import fft, ifft
+from .utils.fft import fft, ifft
 
 
 class SpaceFourierBase(ABC):
+    """Space Fourier operator Base Class."""
+
     def __init__(self):
         self.smaps = None
 
     @abstractmethod
     def op(self, img):
+        """Forward operator."""
         pass
 
     @abstractmethod
     def adj_op(self, data):
+        """Adjoint operator."""
         pass
 
     @property
     def uses_sense(self) -> bool:
+        """If the operators has smaps."""
         return self.smaps is not None
 
 
