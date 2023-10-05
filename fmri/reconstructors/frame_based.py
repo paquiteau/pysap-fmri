@@ -5,9 +5,9 @@ this reconstructor consider the time frames (nostly) independently.
 
 """
 import numpy as np
-from mri.operators.gradient.gradient import GradAnalysis, GradSynthesis
 from tqdm.auto import tqdm, trange
 
+from ..operators.gradient import GradAnalysis, GradSynthesis
 from .base import BaseFMRIReconstructor
 from .utils import OPTIMIZERS, initialize_opt
 
