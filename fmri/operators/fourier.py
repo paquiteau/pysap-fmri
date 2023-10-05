@@ -7,7 +7,7 @@ and RepeatOperator.
 import numpy as np
 from abc import ABC, abstractmethod
 
-from .fft import fft, ifft
+from utils.fft import fft, ifft
 
 
 class SpaceFourierBase(ABC):
