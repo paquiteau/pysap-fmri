@@ -1,4 +1,8 @@
-"""Fourier Operator for fMRI data."""
+"""Fourier Operator for fMRI data.
+
+Implements basic Cartesian Operators. For Non Cartesian Operator use MRI-NUFFT
+and RepeatOperator.
+"""
 
 import numpy as np
 from abc import ABC, abstractmethod

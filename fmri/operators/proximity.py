@@ -7,7 +7,7 @@ from modopt.opt.algorithms import ForwardBackward, POGM
 
 import numpy as np
 
-from .proxtv import tv_taut_string, vec_tv_mm, vec_gtv
+from .utils.proxtv import tv_taut_string, vec_tv_mm, vec_gtv
 
 
 class ProxTV1d:
@@ -293,12 +293,12 @@ class MultiScaleLowRankSparse:
     @classmethod
     def init_lr(cls, lambda_lr, wavelet_name="sym8", n_scale=3):
         """Initialize the prox with only the LowRank prior."""
-        pass
+        raise NotImplementedError
 
     def init_lrsp(cls, lambda_lr, lambda_sp, wavelet_name="sym8", n_scale=3):
         """Initialize the prox with a LowRank and Sparse (l1) prior."""
 
-        pass
+        raise NotImplementedError
 
     def cost(self, *args, **kwargs):
         """Cost function for the LowRankSparse proximal operator."""
