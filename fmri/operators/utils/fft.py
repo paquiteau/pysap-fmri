@@ -24,7 +24,6 @@ def fft(image, axis=-1):
 
 def ifft(kspace_data, axis=-1):
     """Apply the inverse FFT operator."""
-
     return sp.fft.fftshift(
         sp.fft.ifftn(sp.fft.ifftshift(kspace_data, axes=axis), norm="ortho", axes=axis),
         axes=axis,

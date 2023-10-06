@@ -51,7 +51,7 @@ def check_lipschitz_cst(f, x_shape, lipschitz_cst, max_nb_of_iter=10):
 class GradBaseMRI(GradBasic):
     """Base Gradient class for all gradient operators
     Implements the gradient of following function with respect to x:
-    .. math:: ||M x - y|| ^ 2
+    .. math:: ||M x - y|| ^ 2.
 
     Parameters
     ----------
@@ -86,7 +86,7 @@ class GradBaseMRI(GradBasic):
         verbose=0,
     ):
         # Initialize the GradBase with dummy data
-        super(GradBaseMRI, self).__init__(
+        super().__init__(
             np.array(0),
             operator,
             trans_operator,
@@ -120,7 +120,7 @@ class GradBaseMRI(GradBasic):
 class GradAnalysis(GradBaseMRI):
     """Gradient Analysis class.
     This class defines the grad operators for:
-    (1/2) * sum(||F x - yl||^2_2,l)
+    (1/2) * sum(||F x - yl||^2_2,l).
 
     Attributes
     ----------
@@ -136,7 +136,7 @@ class GradAnalysis(GradBaseMRI):
             data_shape = (fourier_op.n_coils, *fourier_op.shape)
         else:
             data_shape = fourier_op.shape
-        super(GradAnalysis, self).__init__(
+        super().__init__(
             operator=fourier_op.op,
             trans_operator=fourier_op.adj_op,
             shape=data_shape,
@@ -149,7 +149,7 @@ class GradAnalysis(GradBaseMRI):
 class GradSynthesis(GradBaseMRI):
     """Gradient Synthesis class.
     This class defines the grad operators for:
-    (1/2) * sum(||F Psi_t alpha - yl||^2_2,l)
+    (1/2) * sum(||F Psi_t alpha - yl||^2_2,l).
 
     Attributes
     ----------
@@ -170,7 +170,7 @@ class GradSynthesis(GradBaseMRI):
             np.squeeze(np.zeros((linear_op.n_coils, *fourier_op.shape)))
         )
         self.linear_op_coeffs_shape = coef.shape
-        super(GradSynthesis, self).__init__(
+        super().__init__(
             self._op_method,
             self._trans_op_method,
             self.linear_op_coeffs_shape,

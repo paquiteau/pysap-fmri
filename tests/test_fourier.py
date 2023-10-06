@@ -105,7 +105,7 @@ def test_fourier_auto_op(shape, n_frames, n_coils, uses_sense):
     fourier_op = CartesianSpaceFourier(
         shape, n_frames=n_frames, n_coils=n_coils, mask=mask, smaps=smaps
     )
-    repeat_op = RepeatOperator(
+    RepeatOperator(
         [
             FFT_Sense(shape, n_coils=n_coils, mask=mask[i], smaps=smaps)
             for i in range(n_frames)

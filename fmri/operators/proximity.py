@@ -1,3 +1,4 @@
+"""Proximity Operators."""
 from modopt.opt.linear import Identity
 from modopt.opt.proximity import SparseThreshold
 from modopt.opt.gradient import GradBasic
@@ -7,7 +8,8 @@ from modopt.opt.algorithms import ForwardBackward, POGM
 
 import numpy as np
 
-from .utils.proxtv import tv_taut_string, vec_tv_mm, vec_gtv
+
+from .utils.proxtv import tv_taut_string, vec_tv_mm, vec_gtv, jit_module
 
 
 class ProxTV1d:
@@ -46,13 +48,15 @@ class ProxTV1d:
         self.kwargs = kwargs
         self.dtype = None
 
+        jit_module()
+
         if callable(method):
             self.method = method
         else:
             try:
                 self.method = getattr(self, "_" + method)
-            except AttributeError:
-                raise ValueError("Unknown method: {}".format(method))
+            except AttributeError as e:
+                raise ValueError(f"Unknown method: {method}") from e
 
         self._center_synth_mat = None
 
@@ -84,11 +88,13 @@ class ProxTV1d:
         return self.method(data, extra_factor)
 
     def _forward_backward_setup(self, data, lambda_reg):
-        """Setup ModOpt Operator for a Forward-Backward algorithm.
+        """Set up ModOpt Operator for a Forward-Backward algorithm.
+
         Parameters
         ----------
         data: np.ndarray
             Input data.
+
         Returns
         -------
         tuple
@@ -192,10 +198,12 @@ class ProxTV1d:
     @classmethod
     def get_lambda_max(cls, y):
         """Compute the maximum value of the regularization parameter.
+
         Parameters
         ----------
         y: np.ndarray
             Input data.
+
         Returns
         -------
         float
@@ -230,6 +238,7 @@ class MultiScaleLowRankSparse:
 
     @property
     def lambda_lr(self):
+        """Low rank regularisation parameter."""
         return self._lambda_lr
 
     @lambda_lr.setter
@@ -239,6 +248,7 @@ class MultiScaleLowRankSparse:
 
     @property
     def lambda_sp(self):
+        """Time Sparsity regularisation parameter."""
         return self._lambda_sp
 
     @lambda_sp.setter
@@ -248,6 +258,8 @@ class MultiScaleLowRankSparse:
 
     def op(self, data):
         """
+        Compute Forward Operator.
+
         Parameters
         ----------
         data: np.ndarray
@@ -258,7 +270,6 @@ class MultiScaleLowRankSparse:
         np.ndarray
             Regularized data.
         """
-
         coeffs = [] * len(data.shape[0])
         # TODO: Run in parallel
         for i in range(data.shape[0]):
@@ -297,7 +308,6 @@ class MultiScaleLowRankSparse:
 
     def init_lrsp(cls, lambda_lr, lambda_sp, wavelet_name="sym8", n_scale=3):
         """Initialize the prox with a LowRank and Sparse (l1) prior."""
-
         raise NotImplementedError
 
     def cost(self, *args, **kwargs):

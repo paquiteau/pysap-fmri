@@ -1,7 +1,4 @@
-"""
-Wavelet operator, build around PyWavelet.
-
-"""
+"""Wavelet operator, build around PyWavelet."""
 
 from modopt.opt.linear import LinearParent
 import pywt
@@ -120,8 +117,7 @@ class WaveletTransform(LinearParent):
         return coeffs
 
     def _op(self, data):
-        """single coil wavelet transform."""
-
+        """Single coil wavelet transform."""
         return pywt.ravel_coeffs(self.idwt(data, **self.wave_conf))
 
     def adj_op(self, coeffs):

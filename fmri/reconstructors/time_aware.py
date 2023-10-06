@@ -196,7 +196,7 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
 
     def _admm(self, kspace_data, max_iter, grad_step, fast=False):
         def subopt(init, obs, prox):
-            """Solve the low rank subproblem"""
+            """Solve the low rank subproblem."""
             opt = ForwardBackward(
                 x=init,
                 grad=GradBasic(obs, self.fourier_op.op, self.fourier_op.adj_op),

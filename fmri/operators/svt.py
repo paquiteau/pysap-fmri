@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Singular Value Threshold operator."""
 import logging
 
@@ -118,7 +117,6 @@ class RankConstraint(ProximityParent):
 
 class FlattenSVT(SingularValueThreshold):
     """Same as SingularValueThreshold but flatten spatial dimension.
-
 
     Parameters
     ----------

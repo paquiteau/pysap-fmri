@@ -77,6 +77,7 @@ def sure_est(data):
     ----------
     data: numpy.array
         Noisy Data with unit standard deviation.
+
     Returns
     -------
     float

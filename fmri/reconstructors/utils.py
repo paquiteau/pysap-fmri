@@ -1,7 +1,7 @@
 """
 Utility function for reconstructors.
 
-See Also:
+See Also
 --------
 Modopt.opt.algorithms
 """
@@ -27,7 +27,7 @@ def initialize_opt(
     """
     Initialize an Optimizer with the suitable parameters.
 
-    Parameters:
+    Parameters
     ----------
     grad_op: OperatorBase
         Gradient Operator for the data consistency
@@ -40,10 +40,11 @@ def initialize_opt(
     metric_kwargs: dict, default None
         Extra kwargs for the metric api of ModOpt
 
-    Returns:
+    Returns
     -------
     An Optimizer Instance to perform the reconstruction with.
-    See Also:
+
+    See Also
     --------
     Modopt.opt.algorithms
 

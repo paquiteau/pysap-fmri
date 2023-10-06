@@ -1,6 +1,4 @@
-"""
-Proximity Operator for Total Variation in 1D.
-"""
+"""Proximity Operator for Total Variation in 1D."""
 import numpy as np
 
 import numba as nb
@@ -28,11 +26,11 @@ nb1d64c = nb.types.Array(nb.types.complex128, 1, "A")
 nb1d32c = nb.types.Array(nb.types.complex64, 1, "A")
 
 
-@nb.njit(nb1d32(nbr1d32, nb.types.float32, nb1d32))
 def linearizedTautString(y, lmbd, x):
     """Linearized Taut String algorithm.
 
     Follows the algorithm described in [1]_, analoguous to the Condat algorithm [2]_.
+
     Parameters
     ----------
     y: np.ndarray
@@ -52,7 +50,6 @@ def linearizedTautString(y, lmbd, x):
     .. [1] https://github.com/albarji/proxTV/blob/master/src/TVL1opt.cpp
     .. [2] Condat, L. (2013). A direct algorithm for 1D total variation denoising.
     """
-
     i = 0
     mnHeight = mxHeight = 0
     mn = y[0] - lmbd
@@ -122,10 +119,9 @@ def linearizedTautString(y, lmbd, x):
     return x
 
 
-@nb.njit(
-    nb2d32(nbr2d32, nb.types.float32),
-    parallel=True,
-)
+linearizedTautString.jitter = nb.njit(nb1d32(nbr1d32, nb.types.float32, nb1d32))
+
+
 def tv_taut_string(y, lmbd):
     """Proximity operator for Total Variation in 1D.
 
@@ -151,29 +147,29 @@ def tv_taut_string(y, lmbd):
     return x.reshape(y.shape)
 
 
+tv_taut_string.jitter = nb.njit(
+    nb2d32(nbr2d32, nb.types.float32),
+    parallel=True,
+)
+
 #######################################
 #   ProxTV 1D using an MM algorithm   #
 #######################################
 
 
-@nb.njit(
+def fast_cost(y, x, r, lmbd):
+    return 0.5 * np.sqrt(np.sum(np.abs(y - x) ** 2)) + lmbd * np.sum(r)
+
+
+fast_cost.jitter = nb.njit(
     [
         nb.types.float32(nbr1d32, nb1d32, nb1d32, nb.types.float32),
         nb.types.float64(nbr1d64, nb1d64, nb1d64, nb.types.float64),
     ],
     fastmath=True,
 )
-def fast_cost(y, x, r, lmbd):
-    return 0.5 * np.sqrt(np.sum(np.abs(y - x) ** 2)) + lmbd * np.sum(r)
 
 
-@nb.njit(
-    [
-        nb1d32(nb1d32),
-        nb1d64(nb1d64),
-    ],
-    fastmath=True,
-)
 def difft(x):
     """Apply the matrix D^T to x.
 
@@ -205,10 +201,15 @@ def difft(x):
     return y
 
 
-@nb.njit(
-    ["void(f8[:],f8[:],f8[:],f8[:],f8[:])", "void(f4[:],f4[:],f4[:],f4[:],f4[:])"],
+difft.jitter = nb.njit(
+    [
+        nb1d32(nb1d32),
+        nb1d64(nb1d64),
+    ],
     fastmath=True,
 )
+
+
 def TDMA(a, b, c, d, x):
     """
     Solve a tridiagonal system of equations.
@@ -246,7 +247,6 @@ def TDMA(a, b, c, d, x):
     .. [1] https://en.wikipedia.org/wiki/Tridiagonal_matrix_algorithm
     .. [2] https://stackoverflow.com/questions/8733015
     """
-
     n = len(d)
     w = np.zeros(n - 1, a.dtype)
     g = np.zeros(n, a.dtype)
@@ -263,12 +263,12 @@ def TDMA(a, b, c, d, x):
         x[i - 1] = g[i - 1] - w[i - 1] * x[i]
 
 
-@nb.njit(
-    [
-        nb1d32(nbr1d32, nb.types.float32, nb.types.int16, nb.types.float32),
-        nb1d64(nbr1d64, nb.types.float64, nb.types.int16, nb.types.float64),
-    ]
+TDMA.jitter = nb.njit(
+    ["void(f8[:],f8[:],f8[:],f8[:],f8[:])", "void(f4[:],f4[:],f4[:],f4[:],f4[:])"],
+    fastmath=True,
 )
+
+
 def tv_mm(y, lmbd, max_iter=100, tol=1e-3):
     N = len(y)
     ddt_up = -np.ones(N - 1, dtype=y.dtype)
@@ -281,7 +281,7 @@ def tv_mm(y, lmbd, max_iter=100, tol=1e-3):
     tmp = np.zeros(N - 1, dtype=y.dtype)
     diffy = y[1:] - y[:-1]
     cost_prev = 1e40
-    for i in range(max_iter):
+    for _i in range(max_iter):
         tmp = np.abs(x[1:] - x[:-1])
         # cost =  0.5 * np.sqrt(np.sum(np.abs(y - x)**2)) + lmbd * np.sum(tmp)
         cost = fast_cost(y, x, tmp, lmbd)
@@ -295,7 +295,25 @@ def tv_mm(y, lmbd, max_iter=100, tol=1e-3):
     return x
 
 
-@nb.njit(
+tv_mm.jitter = nb.njit(
+    [
+        nb1d32(nbr1d32, nb.types.float32, nb.types.int16, nb.types.float32),
+        nb1d64(nbr1d64, nb.types.float64, nb.types.int16, nb.types.float64),
+    ]
+)
+
+
+def vec_tv_mm(yvec, lmbd, max_iter=100, tol=1e-3):
+    xvec2 = np.empty_like(yvec)
+    for i in nb.prange(yvec.shape[1]):
+        if np.max(np.abs(yvec[:, i] - np.mean(yvec[:, i]))) < lmbd:
+            xvec2[:, i] = np.mean(yvec[:, i])
+        else:
+            xvec2[:, i] = tv_mm(yvec[:, i], lmbd, max_iter, tol)
+    return xvec2
+
+
+vec_tv_mm.jitter = nb.njit(
     [
         nb2d32(
             nbr2d32,
@@ -312,21 +330,8 @@ def tv_mm(y, lmbd, max_iter=100, tol=1e-3):
     ],
     parallel=True,
 )
-def vec_tv_mm(yvec, lmbd, max_iter=100, tol=1e-3):
-    xvec2 = np.empty_like(yvec)
-    for i in nb.prange(yvec.shape[1]):
-        if np.max(np.abs(yvec[:, i] - np.mean(yvec[:, i]))) < lmbd:
-            xvec2[:, i] = np.mean(yvec[:, i])
-        else:
-            xvec2[:, i] = tv_mm(yvec[:, i], lmbd, max_iter, tol)
-    return xvec2
 
 
-@nb.njit(
-    [nb1d32(nb1d32, nb.types.int16), nb1d64(nb1d64, nb.types.int16)],
-    fastmath=True,
-    error_model="numpy",
-)
 def running_sum_valid(arr, K):
     """Compute the running sum of an array.
 
@@ -355,25 +360,13 @@ def running_sum_valid(arr, K):
     return ret
 
 
-@nb.njit(
-    [
-        nb.types.Array(nb.types.float64, 1, "A")(
-            nbr1d64,
-            nb.types.float64,
-            nb.types.int16,
-            nb.types.int16,
-            nb.types.float64,
-        ),
-        nb.types.Array(nb.types.float32, 1, "A")(
-            nbr1d32,
-            nb.types.float32,
-            nb.types.int16,
-            nb.types.int16,
-            nb.types.float32,
-        ),
-    ],
+running_sum_valid.jitter = nb.njit(
+    [nb1d32(nb1d32, nb.types.int16), nb1d64(nb1d64, nb.types.int16)],
+    fastmath=True,
     error_model="numpy",
 )
+
+
 def gtv_mm_tol2(y, lmbd, K=1, max_iter=100, tol=1e-3):
     """Group Total Variation denoising using the Majoration-Minimization algorithm.
 
@@ -411,7 +404,7 @@ def gtv_mm_tol2(y, lmbd, K=1, max_iter=100, tol=1e-3):
     tmp = np.zeros(N - 1, dtype=y.dtype)
     diffy = y[1:] - y[:-1]
     cost_prev = 1e40
-    for i in range(max_iter):
+    for _i in range(max_iter):
         tmp = (x[1:] - x[:-1]) ** 2
         if np.min(tmp) < 1e-10:
             break
@@ -431,7 +424,39 @@ def gtv_mm_tol2(y, lmbd, K=1, max_iter=100, tol=1e-3):
     return x
 
 
-@nb.njit(
+gtv_mm_tol2.jitter = nb.njit(
+    [
+        nb.types.Array(nb.types.float64, 1, "A")(
+            nbr1d64,
+            nb.types.float64,
+            nb.types.int16,
+            nb.types.int16,
+            nb.types.float64,
+        ),
+        nb.types.Array(nb.types.float32, 1, "A")(
+            nbr1d32,
+            nb.types.float32,
+            nb.types.int16,
+            nb.types.int16,
+            nb.types.float32,
+        ),
+    ],
+    error_model="numpy",
+)
+
+
+def vec_gtv(yvec, lmbd, K, max_iter=100, tol=1e-3):
+    xvec2 = np.empty_like(yvec)
+    for i in nb.prange(yvec.shape[1]):
+        # all variations would be wiped out, exit early.
+        if np.max(np.abs(yvec[:, i] - np.mean(yvec[:, i]))) < lmbd:
+            xvec2[:, i] = np.mean(yvec[:, i])
+        else:
+            xvec2[:, i] = gtv_mm_tol2(yvec[:, i], lmbd, K, max_iter, tol)
+    return xvec2
+
+
+vec_gtv.jitter = nb.njit(
     [
         nb2d64(
             nbr2d64,
@@ -451,12 +476,17 @@ def gtv_mm_tol2(y, lmbd, K=1, max_iter=100, tol=1e-3):
     parallel=True,
     error_model="numpy",
 )
-def vec_gtv(yvec, lmbd, K, max_iter=100, tol=1e-3):
-    xvec2 = np.empty_like(yvec)
-    for i in nb.prange(yvec.shape[1]):
-        # all variations would be wiped out, exit early.
-        if np.max(np.abs(yvec[:, i] - np.mean(yvec[:, i]))) < lmbd:
-            xvec2[:, i] = np.mean(yvec[:, i])
-        else:
-            xvec2[:, i] = gtv_mm_tol2(yvec[:, i], lmbd, K, max_iter, tol)
-    return xvec2
+
+
+JITTED = False
+
+
+def jit_module():
+    """Jit all functions in this module."""
+    global JITTED
+    if JITTED:
+        return
+    JITTED = True
+    for name, func in globals().items():
+        if hasattr(func, "jitter"):
+            globals()[name] = func.jitter(func)

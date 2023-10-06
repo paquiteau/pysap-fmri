@@ -52,7 +52,7 @@ class WaveletTimeOperator(TimeOperator):
         backend="threading",
         mode="symmetric",
     ):
-        """1D Wavelet Transform applied on each voxel on the time axis
+        """1D Wavelet Transform applied on each voxel on the time axis.
 
         Parameters
         ----------
@@ -95,7 +95,6 @@ class TimeFourier:
         Assuming the time dimension is the first one.
 
         """
-
         y = sp.fft.ifftshift(
             sp.fft.fft(
                 sp.fft.fftshift(x.reshape(x.shape[0], -1), axes=self.time_axis),
