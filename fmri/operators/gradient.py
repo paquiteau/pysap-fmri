@@ -10,7 +10,7 @@ from modopt.math.matrix import PowerMethod
 from modopt.opt.gradient import GradBasic
 
 
-def check_lipschitz_cst(f, x_shape, lipschitz_cst, max_nb_of_iter=10):
+def check_lipschitz_cst(f, x_shape, x_dtype, lipschitz_cst, max_nb_of_iter=10):
     """
     This methods check that for random entrees the lipschitz constraint are
     statisfied:
@@ -39,8 +39,8 @@ def check_lipschitz_cst(f, x_shape, lipschitz_cst, max_nb_of_iter=10):
 
     while is_lips_cst and n < max_nb_of_iter:
         n += 1
-        x = np.random.randn(*x_shape)
-        y = np.random.randn(*x_shape)
+        x = np.random.randn(*x_shape).astype(x_dtype)
+        y = np.random.randn(*x_shape).astype(x_dtype)
         is_lips_cst = np.linalg.norm(f(x) - f(y)) <= (
             lipschitz_cst * np.linalg.norm(x - y)
         )
@@ -84,19 +84,22 @@ class GradBaseMRI(GradBasic):
         lipschitz_cst=None,
         num_check_lips=10,
         verbose=0,
+        dtype="np.float32",
+        input_data_writeable=False,
     ):
         # Initialize the GradBase with dummy data
         super().__init__(
             np.array(0),
             operator,
             trans_operator,
+            input_data_writeable=input_data_writeable,
         )
         if lipschitz_cst is not None:
             self.spec_rad = lipschitz_cst
             self.inv_spec_rad = 1.0 / self.spec_rad
         else:
             calc_lips = PowerMethod(
-                self.trans_op_op, shape, data_type=np.complex, auto_run=False
+                self.trans_op_op, shape, data_type=dtype, auto_run=False
             )
             calc_lips.get_spec_rad(extra_factor=1.1, max_iter=lips_calc_max_iter)
             self.spec_rad = calc_lips.spec_rad
@@ -107,6 +110,7 @@ class GradBaseMRI(GradBasic):
             is_lips = check_lipschitz_cst(
                 f=self.trans_op_op,
                 x_shape=shape,
+                x_dtype=dtype,
                 lipschitz_cst=self.spec_rad,
                 max_nb_of_iter=num_check_lips,
             )
