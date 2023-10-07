@@ -29,15 +29,18 @@ class SequentialReconstructor(BaseFMRIReconstructor):
         self.grad_formulation = OPTIMIZERS[optimizer]
         self.progbar_disable = progbar_disable
 
-    def get_grad_op(self, fourier_op, **kwargs):
+    def get_grad_op(self, fourier_op, dtype, **kwargs):
         """Create gradient operator specific to the problem."""
         if self.grad_formulation == "analysis":
-            return GradAnalysis(fourier_op=fourier_op, verbose=self.verbose, **kwargs)
+            return GradAnalysis(
+                fourier_op=fourier_op, verbose=self.verbose, dtype=dtype, **kwargs
+            )
         if self.grad_formulation == "synthesis":
             return GradSynthesis(
                 linear_op=self.space_linear_op,
                 fourier_op=fourier_op,
                 verbose=self.verbose,
+                dtype=dtype,
                 **kwargs,
             )
         raise ValueError("Unknown Gradient formuation")
@@ -65,7 +68,10 @@ class SequentialReconstructor(BaseFMRIReconstructor):
         for i in progbar_main:
             # only recreate gradient if the trajectory change.
             grad_op = self.get_grad_op(
-                self.fourier_op.fourier_ops[i], input_data_writeable=True, **grad_kwargs
+                self.fourier_op.fourier_ops[i],
+                dtype=kspace_data.dtype,
+                input_data_writeable=True,
+                **grad_kwargs,
             )
 
             # at each step a new frame is loaded
