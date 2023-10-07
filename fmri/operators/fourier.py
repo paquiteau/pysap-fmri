@@ -134,6 +134,8 @@ class RepeatOperator(SpaceFourierBase):
 
 
 class FFT_Sense(SpaceFourierBase):
+    """Apply the FFT with potential Smaps support."""
+
     def __init__(self, shape, n_coils, mask, smaps):
         self.shape = shape
         self.n_coils = n_coils
