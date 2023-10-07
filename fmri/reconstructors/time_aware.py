@@ -3,6 +3,7 @@ from functools import partial
 import scipy as sp
 import numpy as np
 from modopt.opt.proximity import ProximityParent
+from modopt.opt.linear import Identity
 from modopt.opt.cost import costObj
 from modopt.opt.algorithms import POGM, ForwardBackward, ADMM, FastADMM
 
@@ -12,7 +13,7 @@ from modopt.math.matrix import PowerMethod
 from ..operators.fourier import SpaceFourierBase
 from ..operators.time_op import TimeOperator
 from ..operators.svt import FlattenSVT
-from ..operators.utils import InTransformSparseThreshold
+from ..operators.proximity import InTransformSparseThreshold
 from .base import BaseFMRIReconstructor
 
 
@@ -100,7 +101,7 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
         elif time_prox_op is not None:
             self.time_prox_op = time_prox_op
             if time_linear_op is None:
-                self.time_linear_op = Identity
+                self.time_linear_op = Identity()
             else:
                 self.time_linear_op = time_linear_op
         else:

@@ -1,16 +1,6 @@
 """Utilities for fMRI Operators."""
 import numpy as np
-from modopt.opt.proximity import SparseThreshold
 from modopt.opt.gradient import GradBasic
-
-
-class InTransformSparseThreshold(SparseThreshold):
-    """Sparse Thresholding in a transform domain."""
-
-    def _op_method(self, input_data, extra_factor=1.0):
-        return self._linear.adj_op(
-            super()._op_method(self._linear.op(input_data), extra_factor=extra_factor)
-        )
 
 
 def validate_shape(shape, array):
@@ -60,10 +50,9 @@ def make_gradient_operator(fourier_op, obs_data):
     return grad_op
 
 
-# TODO Make it faster with numba and assume the data is already sorted.
-
-
 def sigma_mad(data):
+    """Estimate Variance from the Median Absolute Deviation."""
+    # TODO Make it faster with numba and assume the data is already sorted.
     return np.median(np.abs(data[:] - np.median(data[:]))) / 0.6745
 
 

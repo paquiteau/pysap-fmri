@@ -12,6 +12,15 @@ import numpy as np
 from .utils.proxtv import tv_taut_string, vec_tv_mm, vec_gtv, jit_module
 
 
+class InTransformSparseThreshold(SparseThreshold):
+    """Sparse Thresholding in a transform domain."""
+
+    def _op_method(self, input_data, extra_factor=1.0):
+        return self._linear.adj_op(
+            super()._op_method(self._linear.op(input_data), extra_factor=extra_factor)
+        )
+
+
 class ProxTV1d:
     """Proximity operator for Total Variation 1D, applied along the first axis.
 
