@@ -1,6 +1,7 @@
 """Operator applied voxel wise on the timeserie data."""
 import numpy as np
 import scipy as sp
+import pywt
 
 from .wavelet import WaveletTransform
 
@@ -20,28 +21,33 @@ class TimeOperator:
         self.adj_op_func = adj_op
         self.shape = shape
         self.n_frames = n_frames
-        self.n_frame_op = n_frames
+        self.n_frames_sparse = n_frames
 
     def op(self, data):
         """Apply the forward operator."""
         data_flatten = data.reshape(self.n_frames, -1)
-        data_ret = np.zeros((self.n_frames_op, np.prod(self.shape)), dtype=data.dtype)
+        data_ret = np.zeros(
+            (self.n_frames_sparse, np.prod(self.shape)), dtype=data.dtype
+        )
 
         for i in range(np.prod(self.shape)):
             data_ret[:, i] = self.op_func(data_flatten[:, i])
+        data_ret = data_ret.reshape(self.n_frames_sparse, *self.shape)
         return data_ret
 
     def adj_op(self, data):
         """Apply the adjoint operator."""
         data_ret = np.zeros((self.n_frames, np.prod(self.shape)), dtype=data.dtype)
-
+        data_ = np.reshape(data, (self.n_frames_sparse, np.prod(self.shape)))
         for i in range(np.prod(self.shape)):
-            data_ret[:, i] = self.adj_op_func(data[:, i])
-        data_ret = data_ret.reshape(self.shape)
+            data_ret[:, i] = self.adj_op_func(data_[:, i])
+        data_ret = data_ret.reshape((self.n_frames, *self.shape))
         return data_ret
 
 
 class WaveletTimeOperator(TimeOperator):
+    """Apply a 1D Wavelet on the time dimension."""
+
     def __init__(
         self,
         n_frames,
@@ -77,6 +83,9 @@ class WaveletTimeOperator(TimeOperator):
         )
         self.shape = shape
         self.n_frames = n_frames
+        self.n_frames_sparse = pywt.wavedecn_size(
+            pywt.wavedecn_shapes((n_frames,), wavelet_name, mode, level)
+        )
         self.op_func = self._wavelet_op.op
         self.adj_op_func = self._wavelet_op.adj_op
 
