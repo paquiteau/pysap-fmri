@@ -60,18 +60,22 @@ class WaveletTransform(LinearParent):
                 "Invalid wavelet name. Check ``pywt.waveletlist(kind='all')``"
             )
 
-        self.wavelet_name = wavelet_name
+        self.wavelet = wavelet_name
         if isinstance(shape, int):
             shape = (shape,)
         self.shape = shape
-        self.coeffs_shape = None
         self.n_jobs = n_jobs
-
-        self.wave_conf = {"wavelet": self.wavelet_name, "mode": mode, "level": level}
+        self.mode = mode
+        self.level = level
         if not decimated:
             raise NotImplementedError(
                 "Undecimated Wavelet Transform is not implemented yet."
             )
+        ca, *cds = pywt.wavedecn_shapes(
+            self.shape, wavelet=self.wavelet, mode=self.mode, level=self.level
+        )
+        self.coeffs_shape = [ca] + [s for cd in cds for s in cd.values()]
+
         if len(shape) > 1:
             self.dwt = pywt.wavedecn
             self.idwt = pywt.waverecn
@@ -106,19 +110,21 @@ class WaveletTransform(LinearParent):
             the wavelet coefficients.
         """
         if self.n_coils > 1:
-            coeffs, self.coeffs_slices, self.coeffs_shape = zip(
+            coeffs, self.coeffs_slices, self.raw_coeffs_shape = zip(
                 *Parallel(
                     n_jobs=self.n_jobs, backend=self.backend, verbose=self.verbose
                 )(delayed(self._op)(data[i]) for i in np.arange(self.n_coils))
             )
             coeffs = np.asarray(coeffs)
         else:
-            coeffs, self.coeffs_slices, self.coeffs_shape = self._op(data)
+            coeffs, self.coeffs_slices, self.raw_coeffs_shape = self._op(data)
         return coeffs
 
     def _op(self, data):
         """Single coil wavelet transform."""
-        return pywt.ravel_coeffs(self.idwt(data, **self.wave_conf))
+        return pywt.ravel_coeffs(
+            self.dwt(data, mode=self.mode, level=self.level, wavelet=self.wavelet)
+        )
 
     def adj_op(self, coeffs):
         """Define the wavelet adjoint operator.
@@ -144,14 +150,15 @@ class WaveletTransform(LinearParent):
             )
             images = np.asarray(images)
         else:
-            images = self._adj_op(coeffs, self.coeffs_shape)
+            images = self._adj_op(coeffs)
         return images
 
     def _adj_op(self, coeffs):
         """Single coil inverse wavelet transform."""
         return self.idwt(
             pywt.unravel_coeffs(
-                coeffs, self.coeff_slices, self.coeff_shapes, self._pywt_fun
+                coeffs, self.coeffs_slices, self.raw_coeffs_shape, self._pywt_fun
             ),
-            **self.wave_conf
+            wavelet=self.wavelet,
+            mode=self.mode,
         )
