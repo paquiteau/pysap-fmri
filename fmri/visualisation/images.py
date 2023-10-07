@@ -70,7 +70,7 @@ def _make_grid_plot(n_samples, n_rows=-1, n_cols=-1, aspect_ratio=1.0, img_w=3):
     return fig, axs_2d
 
 
-def mosaic(
+def tile_view(
     array,
     axis=-1,
     samples=-1,
