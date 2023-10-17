@@ -1,23 +1,25 @@
 """Reconstructor for fMRI data using full reconstruction paradigm."""
 from functools import partial
-import scipy as sp
-import numpy as np
-from modopt.opt.proximity import ProximityParent
-from modopt.opt.linear import Identity
-from modopt.opt.cost import costObj
-from modopt.opt.algorithms import POGM, ForwardBackward, ADMM, FastADMM
 
-from modopt.opt.gradient import GradBasic
+import numpy as np
+import scipy as sp
 from modopt.math.matrix import PowerMethod
+from modopt.opt.algorithms import ADMM, POGM, FastADMM, ForwardBackward
+from modopt.opt.cost import costObj
+from modopt.opt.gradient import GradBasic
+from modopt.opt.linear import Identity
+from modopt.opt.proximity import ProximityParent
 
 from ..operators.fourier import SpaceFourierBase
-from ..operators.time_op import TimeOperator
-from ..operators.svt import FlattenSVT
 from ..operators.proximity import InTransformSparseThreshold
+from ..operators.svt import FlattenSVT
+from ..operators.time_op import TimeOperator
 from .base import BaseFMRIReconstructor
 
 
 class JointGradient(GradBasic):
+    """Vectorize the Gradient Operator."""
+
     def __init__(self, op, trans_op, input_data, **kwargs):
         super().__init__(input_data=input_data, op=op, trans_op=trans_op, **kwargs)
         self.single_op = op
