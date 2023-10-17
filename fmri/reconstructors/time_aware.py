@@ -40,6 +40,8 @@ class JointGradient(GradBasic):
 
 
 class JointProx(ProximityParent):
+    """Vectorize proximal operator."""
+
     def __init__(self, operators):
         self.operators = operators
         self.op = self._op_method
@@ -119,6 +121,7 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
         optimizer: str = "pogm",
         verbose: bool = False,
     ):
+        """Reconstruct fMRI data using the choosen optimizer."""
         return getattr(self, f"_{optimizer}")(kspace_data, max_iter, grad_step)
 
     def _setup_fb(self, kspace_data, grad_step=None):
