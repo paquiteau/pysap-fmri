@@ -1,6 +1,6 @@
 """Singular Value Threshold operator."""
 import logging
-
+import gc
 import numpy as np
 import scipy as sp
 from modopt.opt.proximity import ProximityParent
@@ -86,9 +86,11 @@ class SingularValueThreshold(ProximityParent):
         """
         if self._rank is None:
             return self._threshold * np.sum(sp.linalg.svdvals(data))
-        return self._threshold * np.sum(
+        cost_val = self._threshold * np.sum(
             sp.sparse.linalg.svds(data, k=self._rank, return_singular_vectors=False)
         )
+        gc.collect()
+        return cost_val
 
 
 class RankConstraint(ProximityParent):
