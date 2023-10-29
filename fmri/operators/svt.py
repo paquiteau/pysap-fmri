@@ -51,35 +51,33 @@ class SingularValueThreshold(ProximityParent):
         if self._rank is None:
             U, S, V = sp.linalg.svd(data, full_matrices=False)
             St = thresh(S, np.max(S) * self._threshold, self._threshold_type)
-
             return (U * St) @ V
+        max_rank = min(data.shape) - 2
+        if self._rank > max_rank:
+            logger.warn("initial rank bigger than maximal possible one, updating.")
+
+        compute_rank = min(self._rank + 1, max_rank)
+        # Singular value are  in increasing order !
+        U, S, V = sp.sparse.linalg.svds(data, k=compute_rank)
+
+        if self._rel_thresh:
+            thresh_val = self._threshold * np.max(S)
         else:
-            max_rank = min(data.shape) - 2
-            if self._rank > max_rank:
-                logger.warn("initial rank bigger than maximal possible one, updating.")
-
-            compute_rank = min(self._rank + 1, max_rank)
-            # Singular value are  in increasing order !
+            thresh_val = self._threshold
+        # increase the computational rank until we found a singular value small enought.
+        while (
+            thresh(np.min(S), thresh_val, self._threshold_type) > 0
+            and compute_rank < max_rank
+        ):
+            compute_rank = min(compute_rank + self._incre, max_rank)
             U, S, V = sp.sparse.linalg.svds(data, k=compute_rank)
+            logger.debug(f"increasing rank to {compute_rank}")
 
-            if self._rel_thresh:
-                thresh_val = self._threshold * np.max(S)
-            else:
-                thresh_val = self._threshold
-            # increase the computational rank until we found a singular value small enought.
-            while (
-                thresh(np.min(S), thresh_val, self._threshold_type) > 0
-                and compute_rank < max_rank
-            ):
-                compute_rank = min(compute_rank + self._incre, max_rank)
-                U, S, V = sp.sparse.linalg.svds(data, k=compute_rank)
-                logger.debug(f"increasing rank to {compute_rank}")
+        S = thresh(S, thresh_val, self._threshold_type)
+        self._rank = np.count_nonzero(S)
+        logger.debug(f"new Rank: {self._rank}, max value: {np.max(S)}")
 
-            S = thresh(S, thresh_val, self._threshold_type)
-            self._rank = np.count_nonzero(S)
-            logger.debug(f"new Rank: {self._rank}, max value: {np.max(S)}")
-
-            return (U[:, -self._rank :] * S[-self._rank :]) @ V[-self._rank :, :]
+        return (U[:, -self._rank :] * S[-self._rank :]) @ V[-self._rank :, :]
 
     def cost(self, data):
         """Compute cost of low rank operator.
