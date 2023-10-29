@@ -94,6 +94,8 @@ class SingularValueThreshold(ProximityParent):
 
 
 class RankConstraint(ProximityParent):
+    """Singular Value Threshold operator with a fixed rank constraint."""
+
     def __init__(self, rank=1):
         self._rank = rank
 
