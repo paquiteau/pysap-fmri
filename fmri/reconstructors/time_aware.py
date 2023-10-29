@@ -48,7 +48,7 @@ class JointProx(ProximityParent):
         self.cost = self._cost_method
 
     def _op_method(self, input_data, extra_factor=1.0):
-        res = np.zeros_like(input_data)
+        res = np.empty_like(input_data)
 
         for i, operator in enumerate(self.operators):
             res[i] = operator.op(input_data[i], extra_factor=extra_factor)
@@ -253,7 +253,8 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
             L = self.space_prox_op.op(M - S)
             S = self.time_prox_op.op(M - Lprev)
             resk = self.fourier_op.op(L + S) - kspace_data
-            M = L + S - grad_step * self.fourier_op.adj_op(resk)
+            M = L + S
+            M -= grad_step * self.fourier_op.adj_op(resk)
             Lprev = L.copy()
             costs[i] = (
                 self.space_prox_op.cost(L)
