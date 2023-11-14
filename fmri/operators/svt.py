@@ -77,7 +77,10 @@ class SingularValueThreshold(ProximityParent):
         self._rank = np.count_nonzero(S)
         logger.debug(f"new Rank: {self._rank}, max value: {np.max(S)}")
 
-        return (U[:, -self._rank :] * S[-self._rank :]) @ V[-self._rank :, :]
+        ret = (U[:, -self._rank :] * S[-self._rank :]) @ V[-self._rank :, :]
+        del U, S, V
+        gc.collect()
+        return ret
 
     def cost(self, data):
         """Compute cost of low rank operator.
