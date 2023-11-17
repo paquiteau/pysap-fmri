@@ -9,6 +9,17 @@ from abc import ABC, abstractmethod
 
 from .utils.fft import fft, ifft
 
+MRINUFFT_AVAILABLE = True
+CUPY_AVAILABLE = True
+
+try:
+    import cupy as cp
+    import cupyx as cpx
+except ImportError:
+    CUPY_AVAILABLE = False
+
+from mrinufft import get_operator
+
 
 class SpaceFourierBase(ABC):
     """Space Fourier operator Base Class."""
@@ -131,6 +142,88 @@ class RepeatOperator(SpaceFourierBase):
     @property
     def smaps(self):
         return self.fourier_ops[0].smaps
+
+
+class CufinufftSpaceFourier(RepeatOperator):
+    """A dedicated Space Fourier operator based on cufinufft.
+
+    Requires a workable installation of cupy and cufinufft.
+
+    Parameters
+    ----------
+    samples: k space samples location of shape (n_frames, n_samples, 3)
+    shape: image domain shape
+    n_coils:
+    smaps:
+    density:
+        density compensation profile of shape (n_frames, n_samples)
+
+    **kwargs:
+        extra kwargs for cufinufft
+    """
+
+    def __init__(self, samples, shape, n_frames, n_coils, smaps, density, **kwargs):
+        if not CUPY_AVAILABLE:
+            raise RuntimeError("Cupy is not available")
+
+        cufinufft_factory = get_operator("cufinufft")
+
+        # Copy the smaps on gpu
+        if smaps is not None:
+            smaps_gpu = cp.array(smaps)
+            n_coils = len(smaps)
+        else:
+            smaps_gpu = None
+        if len(samples) != n_frames:
+            raise ValueError("size of samples and frames do not match")
+        self.fourier_ops = [None] * n_frames
+        for i in range(n_frames):
+            self.fourier_ops[i] = cufinufft_factory(
+                samples[i],
+                shape,
+                n_coils=n_coils,
+                smaps=smaps_gpu,
+                smaps_cached=True,
+                density=False,
+                **kwargs,
+            )
+
+
+class gpuNUFFTSpaceFourier(RepeatOperator):
+    """A dedicated Space Fourier operator based on gpuNUFFT.
+
+    Requires a workable installation of Cupy and gpuNUFFT
+
+
+    """
+
+    def __init__(self, samples, shape, n_frames, n_coils, smaps, density, **kwargs):
+        factory = get_operator("gpuNUFFT")
+        if not CUPY_AVAILABLE:
+            raise RuntimeError("Cupy is not available")
+        pinned_smaps = None
+        # Copy the smaps on gpu
+        if smaps is not None:
+            smaps_reshaped = smaps.T.reshape(-1, smaps.shape[0])
+            pinned_smaps = cpx.empty_pinned(
+                smaps_reshaped.shape,
+                dtype=smaps_reshaped.dtype,
+            )
+            np.copyto(pinned_smaps, smaps)
+            n_coils = len(smaps)
+        if len(samples) != n_frames:
+            raise ValueError("size of samples and frames do not match")
+
+        self.fourier_ops = [None] * n_frames
+        for i in range(n_frames):
+            self.fourier_ops[i] = factory(
+                samples[i],
+                shape,
+                n_coils=n_coils,
+                smaps=None,
+                density=True,
+                pinned_smaps=pinned_smaps,
+            )
 
 
 class FFT_Sense(SpaceFourierBase):
