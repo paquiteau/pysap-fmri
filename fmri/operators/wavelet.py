@@ -1,5 +1,5 @@
 """Wavelet operator, build around PyWavelet."""
-
+import warnings
 from modopt.opt.linear import LinearParent
 import pywt
 from joblib import Parallel, delayed, cpu_count
@@ -21,8 +21,8 @@ class WaveletTransform(LinearParent):
         It should not contains coils or batch dimension.
     nb_scales: int, default 4
         the number of scales in the decomposition.
-    n_coils: int, default 1
-        the number of coils for multichannel reconstruction
+    n_batchs: int, default 1
+        the number of channel/ batch dimension
     n_jobs: int, default 1
         the number of cores to use for multichannel.
     backend: str, default "threading"
@@ -36,8 +36,8 @@ class WaveletTransform(LinearParent):
         number of scale decomposed in wavelet space.
     n_jobs: int
         number of jobs for parallel computation
-    n_coils: int
-        number of coils use f
+    n_batchs: int
+        size of batch dimension (typically number of coils in MRI)
     backend: str
         Backend use for parallel computation
     verbose: int
@@ -49,7 +49,7 @@ class WaveletTransform(LinearParent):
         wavelet_name,
         shape,
         level=4,
-        n_coils=1,
+        n_batch=1,
         n_jobs=1,
         decimated=True,
         backend="threading",
@@ -57,7 +57,7 @@ class WaveletTransform(LinearParent):
     ):
         if wavelet_name not in pywt.wavelist(kind="all"):
             raise ValueError(
-                "Invalid wavelet name. Check ``pywt.waveletlist(kind='all')``"
+                "Invalid wavelet name. Availables are  ``pywt.waveletlist(kind='all')``"
             )
 
         self.wavelet = wavelet_name
@@ -85,9 +85,9 @@ class WaveletTransform(LinearParent):
             self.idwt = pywt.waverec
             self._pywt_fun = "wavedec"
 
-        self.n_coils = n_coils
-        if self.n_coils == 1 and self.n_jobs != 1:
-            print("Making n_jobs = 1 for WaveletN as n_coils = 1")
+        self.n_batch = n_batch
+        if self.n_batch == 1 and self.n_jobs != 1:
+            warnings.warn("Making n_jobs = 1 for WaveletTransform as n_batchs = 1")
             self.n_jobs = 1
         self.backend = backend
         n_proc = self.n_jobs
@@ -109,11 +109,11 @@ class WaveletTransform(LinearParent):
         coeffs: ndarray
             the wavelet coefficients.
         """
-        if self.n_coils > 1:
+        if self.n_batch > 1:
             coeffs, self.coeffs_slices, self.raw_coeffs_shape = zip(
                 *Parallel(
                     n_jobs=self.n_jobs, backend=self.backend, verbose=self.verbose
-                )(delayed(self._op)(data[i]) for i in np.arange(self.n_coils))
+                )(delayed(self._op)(data[i]) for i in np.arange(self.n_batch))
             )
             coeffs = np.asarray(coeffs)
         else:
@@ -141,12 +141,12 @@ class WaveletTransform(LinearParent):
         data: ndarray
             the reconstructed data.
         """
-        if self.n_coils > 1:
+        if self.n_batch > 1:
             images = Parallel(
                 n_jobs=self.n_jobs, backend=self.backend, verbose=self.verbose
             )(
                 delayed(self._adj_op)(coeffs[i], self.coeffs_shape[i])
-                for i in np.arange(self.n_coils)
+                for i in np.arange(self.n_batch)
             )
             images = np.asarray(images)
         else:
