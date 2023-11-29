@@ -4,8 +4,13 @@ Implements basic Cartesian Operators. For Non Cartesian Operator use MRI-NUFFT
 and RepeatOperator.
 """
 
-import numpy as np
+import itertools
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
+
+import numpy as np
+from joblib import Parallel, delayed
+from mrinufft import get_operator
 
 from .utils.fft import fft, ifft
 
@@ -14,11 +19,9 @@ CUPY_AVAILABLE = True
 
 try:
     import cupy as cp
-    import cupyx as cpx
+    import cupyx as cx
 except ImportError:
     CUPY_AVAILABLE = False
-
-from mrinufft import get_operator
 
 
 class SpaceFourierBase(ABC):
@@ -144,7 +147,7 @@ class RepeatOperator(SpaceFourierBase):
         return self.fourier_ops[0].smaps
 
 
-class CufinufftSpaceFourier(RepeatOperator):
+class CufinufftSpaceFourier(SpaceFourierBase):
     """A dedicated Space Fourier operator based on cufinufft.
 
     Requires a workable installation of cupy and cufinufft.
@@ -189,41 +192,128 @@ class CufinufftSpaceFourier(RepeatOperator):
             )
 
 
-class gpuNUFFTSpaceFourier(RepeatOperator):
+class PooledgpuNUFFTSpaceFourier(SpaceFourierBase):
     """A dedicated Space Fourier operator based on gpuNUFFT.
 
     Requires a workable installation of Cupy and gpuNUFFT
 
-
     """
 
-    def __init__(self, samples, shape, n_frames, n_coils, smaps, density, **kwargs):
-        factory = get_operator("gpuNUFFT")
+    def __init__(
+        self,
+        samples,
+        shape,
+        n_frames,
+        n_coils,
+        pool_size,
+        smaps,
+        density,
+        **kwargs,
+    ):
         if not CUPY_AVAILABLE:
             raise RuntimeError("Cupy is not available")
-        pinned_smaps = None
-        # Copy the smaps on gpu
+
+        self.n_samples = samples.shape[1]
+        self.n_frames = n_frames
+        self.n_coils = n_coils
+        self.shape = shape
+
+        if samples.shape != (n_frames, self.n_samples, len(shape)):
+            raise ValueError("size of samples and frames do not match")
+        self.samples = samples
+        self._init_pinned_data(smaps, kwargs.pop("pinned_smaps", None), pool_size)
+        self._init_density(density)
+        self._init_operators(**kwargs)
+
+    def _init_pinned_data(self, smaps, pinned_smaps, pool_size):
+        # Prepare the smaps
         if smaps is not None:
             smaps_reshaped = smaps.T.reshape(-1, smaps.shape[0])
-            pinned_smaps = cpx.empty_pinned(
+            pinned_smaps = cx.empty_pinned(
                 smaps_reshaped.shape,
                 dtype=smaps_reshaped.dtype,
             )
             np.copyto(pinned_smaps, smaps)
-            n_coils = len(smaps)
-        if len(samples) != n_frames:
-            raise ValueError("size of samples and frames do not match")
+        elif pinned_smaps is None:
+            self.smaps = None
+            self.pinned_smaps = None
+        else:
+            self.smaps = None
+            self.pinned_smaps = pinned_smaps
 
-        self.fourier_ops = [None] * n_frames
-        for i in range(n_frames):
-            self.fourier_ops[i] = factory(
-                samples[i],
-                shape,
-                n_coils=n_coils,
-                smaps=None,
-                density=True,
-                pinned_smaps=pinned_smaps,
+        self.pooled_kspace = [None] * pool_size
+        self.pooled_image = [None] * pool_size
+        self.pool_size = pool_size
+        c = 1 if pinned_smaps is not None else self.n_coils
+        for i in range(pool_size):
+            self.pooled_kspace[i] = cx.zeros_pinned(
+                (self.n_coils, self.n_samples), dtype=np.complex64
             )
+            self.pooled_image[i] = cx.zeros_pinned(
+                (np.prod(self.shape), c), dtype=np.complex64
+            )
+
+    def _init_density(self, density):
+        # Format the density
+        # TODO use pattern matching ?
+        if isinstance(density, np.ndarray):
+            if len(density) == self.n_samples:
+                density = np.repeat(density[np.newaxis, ...], self.n_frames, axis=0)
+            elif density.shape != (self.n_frames, self.n_samples):
+                raise ValueError("Density shape not understood")
+        elif isinstance(density, bool):
+            density = [density] * self.n_frames
+        elif not (isinstance(density, Sequence) and len(density) == self.n_frames):
+            raise ValueError("Density shape not understood")
+        self.density = density
+
+    def _init_operators(self, **kwargs):
+        # initialize all the operators
+        factory = get_operator("gpunufft")
+        self.fourier_ops = [None] * self.n_frames
+        for i, p_img, p_ksp in zip(
+            range(self.n_frames),
+            itertools.cycle(self.pooled_image),
+            itertools.cycle(self.pooled_kspace),
+        ):
+            self.fourier_ops[i] = factory(
+                self.samples[i],
+                self.shape,
+                n_coils=self.n_coils,
+                smaps=None,
+                density=self.density[i],
+                pinned_smaps=self.pinned_smaps,
+                pinned_kspace=p_ksp,
+                pinned_image=p_img,
+                **kwargs,
+            )
+
+    def op(self, images):
+        """Apply the forward operator."""
+        final_ksp = np.empty(
+            (len(images), self.n_coils, self.n_samples), dtype=np.complex64
+        )
+        for i in range(len(images)):
+            final_ksp[i] = self.fourier_ops[i].op(images[i])
+        return final_ksp
+
+    def adj_op(self, coeffs):
+        """Apply Adjoint Operator."""
+        c = 1 if self.pinned_smaps is not None else self.n_coils
+        final_image = np.empty((self.n_frames, c, *self.shape), dtype=np.complex64)
+        for i in range(len(coeffs)):
+            final_image[i] = self.fourier_ops[i].adj_op(coeffs[i])
+        return final_image
+
+    def get_grad(self, data, obs_data):
+        """Compute the gradient operation."""
+        c = 1 if self.pinned_smaps is not None else self.n_coils
+        final_image = np.empty((self.n_frames, c, *self.shape), dtype=np.complex64)
+
+        for i in range(len(data)):
+            ksp = self.fourier_ops[i].op(data[i])
+            final_image[i] = self.fourier_ops[i].adj_op(ksp - obs_data[i])
+        return final_image
 
 
 class FFT_Sense(SpaceFourierBase):
