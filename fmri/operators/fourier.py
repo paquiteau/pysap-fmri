@@ -40,11 +40,6 @@ class SpaceFourierBase(ABC):
         """Adjoint operator."""
         pass
 
-    @property
-    def uses_sense(self) -> bool:
-        """If the operators has smaps."""
-        return self.smaps is not None
-
 
 class CartesianSpaceFourier(SpaceFourierBase):
     """A Fourier Operator in space."""
@@ -118,33 +113,31 @@ class RepeatOperator(SpaceFourierBase):
     def __init__(self, fourier_ops):
         self.fourier_ops = list(fourier_ops)
 
-    def op(self, data):
-        return np.asarray(
-            [
-                self.fourier_ops[i].op(data[i]).copy()
-                for i in range(len(self.fourier_ops))
-            ]
+    def op(self, images):
+        """Apply the forward operator."""
+        final_ksp = np.empty(
+            (len(images), self.n_coils, self.n_samples), dtype=np.complex64
         )
+        for i in range(len(images)):
+            final_ksp[i] = self.fourier_ops[i].op(images[i])
+        return final_ksp
 
-    def adj_op(self, data):
-        return np.asarray(
-            [
-                self.fourier_ops[i].adj_op(data[i]).copy()
-                for i in range(len(self.fourier_ops))
-            ]
-        )
+    def adj_op(self, coeffs):
+        """Apply Adjoint Operator."""
+        c = 1 if self.uses_sense else self.n_coils
+        final_image = np.empty((self.n_frames, c, *self.shape), dtype=np.complex64)
+        for i in range(len(coeffs)):
+            final_image[i] = self.fourier_ops[i].adj_op(coeffs[i])
+        return final_image.squeeze()
 
-    @property
-    def shape(self):
-        return self.fourier_ops[0].shape
+    def __getattr__(self, attrName):
+        """Pass the attributes to the first operator."""
+        return getattr(self.fourier_ops[0], attrName)
 
     @property
     def n_frames(self):
+        """Number of frames"""
         return len(self.fourier_ops)
-
-    @property
-    def smaps(self):
-        return self.fourier_ops[0].smaps
 
 
 class CufinufftSpaceFourier(SpaceFourierBase):
@@ -314,6 +307,10 @@ class PooledgpuNUFFTSpaceFourier(SpaceFourierBase):
             ksp = self.fourier_ops[i].op(data[i])
             final_image[i] = self.fourier_ops[i].adj_op(ksp - obs_data[i])
         return final_image
+
+    def __getattr__(self, attrName):
+        """Pass the attributes to the first operator."""
+        return getattr(self.fourier_ops[0], attrName)
 
 
 class FFT_Sense(SpaceFourierBase):
