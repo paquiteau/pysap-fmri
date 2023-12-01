@@ -1,5 +1,6 @@
 """Reconstructor for fMRI data using full reconstruction paradigm."""
 from functools import partial
+import time
 
 import numpy as np
 import scipy as sp
@@ -243,7 +244,7 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
         nt = len(kspace_data)
 
         M0 = self.fourier_op.adj_op(kspace_data)
-        norm_M0 = np.linalg.norm(M0.reshape(nt, -1), 2)
+        norm_M0 = np.linalg.norm(M0.reshape(nt, -1), "fro")
         M = M0.copy()
         S = np.zeros_like(M)
         L = np.zeros_like(M)
@@ -259,10 +260,10 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
             costs[i] = (
                 self.space_prox_op.cost(L)
                 + self.time_prox_op.cost(S)
-                + np.linalg.norm(resk.reshape(nt, -1), 2)
+                + np.linalg.norm(resk.reshape(nt, -1), "fro")
                 ** 2  # 0.5 factor omitted as in matlab code.
             )
-            if np.linalg.norm((M - M0).reshape(nt, -1), 2) < 1e-3 * norm_M0:
+            if np.linalg.norm((M - M0).reshape(nt, -1), "fro") < 1e-3 * norm_M0:
                 break
         costs = costs[: i + 1]
 
@@ -274,7 +275,7 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
         nt = len(kspace_data)
 
         def flatten2norm(x):
-            return np.linalg.norm(x.reshape(nt, -1), 2)
+            return np.linalg.norm(x.reshape(nt, -1), "fro")
 
         def softthresh(x, thresh):
             return np.sign(x) * np.maximum(np.abs(x) - thresh, 0)
@@ -320,8 +321,8 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
             # + lambda_s
             # * np.sum(np.abs(sp.fft.fft(S.reshape(nt, -1), axis=1, norm="ortho")))
             # !! 0.5 factor was omitted as in matlab code.
-            costs[i] = 0.5 * np.linalg.norm(resk.reshape(nt, -1), 2) ** 2
-            if np.linalg.norm((M - M0).reshape(nt, -1), 2) < 1e-3 * norm_M0:
+            costs[i] = 0.5 * np.linalg.norm(resk.reshape(nt, -1), "fro") ** 2
+            if np.linalg.norm((M - M0).reshape(nt, -1), "fro") < 1e-3 * norm_M0:
                 break
         costs = costs[: i + 1]
         return (L + S, L, S, costs)
