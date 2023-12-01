@@ -1,13 +1,46 @@
 """Singular Value Threshold operator."""
 import logging
+from functools import wraps
 import gc
 import numpy as np
 import scipy as sp
+
 from modopt.opt.proximity import ProximityParent
 from modopt.signal.noise import thresh
 
-
 logger = logging.getLogger("pysap-fmri")
+
+
+def memory_cleanup(gpu=None):
+    """Cleanup all the memory."""
+    gc.collect()
+    if not gpu:
+        return
+    import cupy as cp
+
+    mempool = cp.get_default_memory_pool()
+    mempool.free_all_blocks()
+
+
+def with_engine(fun):
+    @wraps(fun)
+    def wrapper(self, data, **kwargs):
+        if self._engine == "gpu":
+            data_ = self.xp.array(data)
+        else:
+            data_ = data
+
+        res_ = fun(self, data_, **kwargs)
+        if self._engine == "gpu":
+            res = res_.get()
+        else:
+            res = res_
+        del res_
+        del data_
+        memory_cleanup(self._engine == "gpu")
+        return res
+
+    return wrapper
 
 
 class SingularValueThreshold(ProximityParent):
@@ -28,13 +61,30 @@ class SingularValueThreshold(ProximityParent):
         Initial rank to use for the SVD.
     """
 
-    def __init__(self, threshold, initial_rank=1, thresh_type="hard"):
+    def __init__(self, threshold, initial_rank=1, thresh_type="hard", engine="cpu"):
+        from scipy.sparse.linalg import svds
+
         self._threshold = threshold
         self._rank = initial_rank
         self._threshold_type = thresh_type.split("-")[0]
         self._rel_thresh = thresh_type.endswith("-rel")
         self._incre = 5
 
+        self._engine = engine
+        self.xp = np
+
+        self.svds = svds
+        if self._engine == "gpu":
+            try:
+                import cupy as cp
+                from cupyx.scipy.sparse.linalg import svds
+            except ImportError:
+                logger.warn("no gpu library found, uses numpy")
+            else:
+                self.xp = cp
+                self.svds = svds
+
+    @with_engine
     def op(self, data, extra_factor=1.0):
         """Perform singular values thresholding.
 
@@ -49,7 +99,7 @@ class SingularValueThreshold(ProximityParent):
             The data with thresholded singular values.
         """
         if self._rank is None:
-            U, S, V = sp.linalg.svd(data, full_matrices=False)
+            U, S, V = self.xp.linalg.svd(data, full_matrices=False)
             St = thresh(S, np.max(S) * self._threshold, self._threshold_type)
             return (U * St) @ V
         max_rank = min(data.shape) - 2
@@ -58,41 +108,40 @@ class SingularValueThreshold(ProximityParent):
 
         compute_rank = min(self._rank + 1, max_rank)
         # Singular value are  in increasing order !
-        U, S, V = sp.sparse.linalg.svds(data, k=compute_rank)
+        U, S, V = self.svds(data, k=compute_rank)
+        print("U,S,V", U, S, V)
 
         if self._rel_thresh:
-            thresh_val = self._threshold * np.max(S)
+            thresh_val = self._threshold * self.xp.max(S)
         else:
             thresh_val = self._threshold
         # increase the computational rank until we found a singular value small enought.
         while (
-            thresh(np.min(S), thresh_val, self._threshold_type) > 0
+            thresh(self.xp.min(S), thresh_val, self._threshold_type) > 0
             and compute_rank < max_rank
         ):
             compute_rank = min(compute_rank + self._incre, max_rank)
-            U, S, V = sp.sparse.linalg.svds(data, k=compute_rank)
-            logger.debug(f"increasing rank to {compute_rank}")
-
+            U, S, V = self.svds(data, k=compute_rank)
+            logger.debug(f"increasing rank to {compute_rank}, thresh_val {thresh_val}")
         S = thresh(S, thresh_val, self._threshold_type)
-        self._rank = np.count_nonzero(S)
-        logger.debug(f"new Rank: {self._rank}, max value: {np.max(S)}")
+        self._rank = self.xp.count_nonzero(S)
+        print("thresh_val", thresh_val, self._rank)
+        logger.debug(f"new Rank: {self._rank}, max value: {self.xp.max(S)}")
 
         ret = (U[:, -self._rank :] * S[-self._rank :]) @ V[-self._rank :, :]
+        print("ret", ret)
         del U, S, V
-        gc.collect()
         return ret
 
+    @with_engine
     def cost(self, data):
         """Compute cost of low rank operator.
 
         This is the nuclear norm of data.
         """
-        if self._rank is None:
-            return self._threshold * np.sum(sp.linalg.svdvals(data))
-        cost_val = self._threshold * np.sum(
-            sp.sparse.linalg.svds(data, k=self._rank, return_singular_vectors=False)
+        cost_val = self._threshold * self.xp.sum(
+            self.svds(data, k=self._rank, return_singular_vectors=False)
         )
-        gc.collect()
         return cost_val
 
 
@@ -141,13 +190,15 @@ class FlattenSVT(SingularValueThreshold):
     SingularValueThreshold: Singular Value Threshold operator.
     """
 
-    def __init__(self, threshold, initial_rank, thresh_type="hard-rel"):
-        super().__init__(threshold, initial_rank, thresh_type=thresh_type)
+    def __init__(self, threshold, initial_rank, thresh_type="hard-rel", engine="cpu"):
+        super().__init__(
+            threshold, initial_rank, thresh_type=thresh_type, engine=engine
+        )
 
     def op(self, data, extra_factor=1.0):
         """Operator function."""
         shape = data.shape
-        results = super().op(data.reshape(shape[0], -1), extra_factor)
+        results = super().op(data.reshape(shape[0], -1), extra_factor=extra_factor)
         results = np.reshape(results, data.shape)
         return results
 
