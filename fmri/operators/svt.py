@@ -109,7 +109,6 @@ class SingularValueThreshold(ProximityParent):
         compute_rank = min(self._rank + 1, max_rank)
         # Singular value are  in increasing order !
         U, S, V = self.svds(data, k=compute_rank)
-        print("U,S,V", U, S, V)
 
         if self._rel_thresh:
             thresh_val = self._threshold * self.xp.max(S)
@@ -125,11 +124,9 @@ class SingularValueThreshold(ProximityParent):
             logger.debug(f"increasing rank to {compute_rank}, thresh_val {thresh_val}")
         S = thresh(S, thresh_val, self._threshold_type)
         self._rank = self.xp.count_nonzero(S)
-        print("thresh_val", thresh_val, self._rank)
         logger.debug(f"new Rank: {self._rank}, max value: {self.xp.max(S)}")
 
         ret = (U[:, -self._rank :] * S[-self._rank :]) @ V[-self._rank :, :]
-        print("ret", ret)
         del U, S, V
         return ret
 
@@ -208,6 +205,8 @@ class FlattenSVT(SingularValueThreshold):
 
 
 class FlattenRankConstraint(RankConstraint):
+    """Apply rank constraint on flatten array."""
+
     def __init__(self, rank, roi=None):
         super().__init__(rank)
         self.roi = roi
