@@ -11,6 +11,7 @@ from collections.abc import Sequence
 import numpy as np
 from joblib import Parallel, delayed
 from mrinufft import get_operator
+from mrinufft.operators.interfaces.gpunufft import make_pinned_smaps
 
 from .utils.fft import fft, ifft
 
@@ -188,8 +189,26 @@ class CufinufftSpaceFourier(SpaceFourierBase):
 class PooledgpuNUFFTSpaceFourier(SpaceFourierBase):
     """A dedicated Space Fourier operator based on gpuNUFFT.
 
-    Requires a workable installation of Cupy and gpuNUFFT
+    Requires a workable installation of Cupy and gpuNUFFT and mrinufft.
 
+    Parameters
+    ----------
+    samples: np.ndarray
+        k space samples location of shape (n_frames, n_samples, 3)
+    shape: tuple
+        image domain shape
+    n_frames: int
+        number of frames
+    n_coils: int
+        number of coils
+    pool_size: int
+        number of operators to pool
+    smaps: np.ndarray
+        sensitivity maps of shape (n_coils, *shape)
+    density: bool or np.ndarray or list
+        density compensation profile of shape (n_frames, n_samples)
+    **kwargs:
+        extra kwargs for gpunufft
     """
 
     def __init__(
@@ -214,25 +233,14 @@ class PooledgpuNUFFTSpaceFourier(SpaceFourierBase):
         if samples.shape != (n_frames, self.n_samples, len(shape)):
             raise ValueError("size of samples and frames do not match")
         self.samples = samples
-        self._init_pinned_data(smaps, kwargs.pop("pinned_smaps", None), pool_size)
+        self._init_pinned_data(pool_size, smaps)
         self._init_density(density)
         self._init_operators(**kwargs)
 
-    def _init_pinned_data(self, smaps, pinned_smaps, pool_size):
+    def _init_pinned_data(self, pool_size, smaps):
         # Prepare the smaps
-        if smaps is not None:
-            smaps_reshaped = smaps.T.reshape(-1, smaps.shape[0])
-            pinned_smaps = cx.empty_pinned(
-                smaps_reshaped.shape,
-                dtype=smaps_reshaped.dtype,
-            )
-            np.copyto(pinned_smaps, smaps)
-        elif pinned_smaps is None:
-            self.smaps = None
-            self.pinned_smaps = None
-        else:
-            self.smaps = None
-            self.pinned_smaps = pinned_smaps
+        pinned_smaps = make_pinned_smaps(smaps)
+        self.pinned_smaps = pinned_smaps
 
         self.pooled_kspace = [None] * pool_size
         self.pooled_image = [None] * pool_size
@@ -314,7 +322,19 @@ class PooledgpuNUFFTSpaceFourier(SpaceFourierBase):
 
 
 class FFT_Sense(SpaceFourierBase):
-    """Apply the FFT with potential Smaps support."""
+    """Apply the FFT with potential Smaps support.
+
+    Parameters
+    ----------
+    shape : tuple
+        Shape of the image.
+    n_coils : int
+        Number of coils.
+    mask : array
+        Mask of the image.
+    smaps : array
+        Sensitivity maps.
+    """
 
     def __init__(self, shape, n_coils, mask, smaps):
         self.shape = shape
@@ -323,6 +343,7 @@ class FFT_Sense(SpaceFourierBase):
         self.smaps = smaps
 
     def op(self, img):
+        """Apply the forward operator."""
         axes = tuple(range(-len(self.shape), 0))
         if self.n_coils > 1:
             if self.smaps is not None:
@@ -336,6 +357,7 @@ class FFT_Sense(SpaceFourierBase):
             return fft(img, axis=axes) * self.mask
 
     def adj_op(self, ksp):
+        """Apply the adjoint operator."""
         axes = tuple(range(-len(self.shape), 0))
         if self.n_coils > 1:
             img = ifft(ksp, axis=axes)
