@@ -136,10 +136,8 @@ class GradAnalysis(GradBaseMRI):
     """
 
     def __init__(self, fourier_op, verbose=0, **kwargs):
-        if fourier_op.n_coils != 1:
-            data_shape = (fourier_op.n_coils, *fourier_op.shape)
-        else:
-            data_shape = fourier_op.shape
+        n_channels = fourier_op.n_coils if not fourier_op.uses_sense else 1
+        data_shape = (n_channels, *fourier_op.shape)
         super().__init__(
             operator=fourier_op.op,
             trans_operator=fourier_op.adj_op,
@@ -170,9 +168,8 @@ class GradSynthesis(GradBaseMRI):
     def __init__(self, linear_op, fourier_op, verbose=0, **kwargs):
         self.fourier_op = fourier_op
         self.linear_op = linear_op
-        coef = linear_op.op(
-            np.squeeze(np.zeros((linear_op.n_coils, *fourier_op.shape)))
-        )
+        n_channels = fourier_op.n_coils if not fourier_op.uses_sense else 1
+        coef = linear_op.op(np.squeeze(np.zeros((n_channels, *fourier_op.shape))))
         self.linear_op_coeffs_shape = coef.shape
         super().__init__(
             self._op_method,
