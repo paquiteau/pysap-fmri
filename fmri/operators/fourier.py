@@ -11,7 +11,11 @@ from collections.abc import Sequence
 import numpy as np
 from joblib import Parallel, delayed
 from mrinufft import get_operator
-from mrinufft.operators.interfaces.gpunufft import make_pinned_smaps
+
+try:
+    from mrinufft.operators.interfaces.gpunufft import make_pinned_smaps
+except ImportError:
+    make_pinned_smaps = None
 
 from .utils.fft import fft, ifft
 
@@ -23,6 +27,22 @@ try:
     import cupyx as cx
 except ImportError:
     CUPY_AVAILABLE = False
+
+
+class LazyFourierOps:
+    """Lazy Fourier Operators."""
+
+    def __init__(self, factory, params):
+        self._factory = factory
+        self._params = params
+
+    def __getitem__(self, idx):
+        """Get the operator at index idx."""
+        return self._factory(**self._params[idx])
+
+    def __len__(self):
+        """Return the number of operators."""
+        return len(self._params)
 
 
 class SpaceFourierBase(ABC):
@@ -141,7 +161,7 @@ class RepeatOperator(SpaceFourierBase):
         return len(self.fourier_ops)
 
 
-class CufinufftSpaceFourier(SpaceFourierBase):
+class CufinufftSpaceFourier(RepeatOperator):
     """A dedicated Space Fourier operator based on cufinufft.
 
     Requires a workable installation of cupy and cufinufft.
@@ -159,11 +179,11 @@ class CufinufftSpaceFourier(SpaceFourierBase):
         extra kwargs for cufinufft
     """
 
-    def __init__(self, samples, shape, n_frames, n_coils, smaps, density, **kwargs):
+    def __init__(
+        self, samples, shape, n_frames, n_coils, smaps, density="cell_count", **kwargs
+    ):
         if not CUPY_AVAILABLE:
             raise RuntimeError("Cupy is not available")
-
-        cufinufft_factory = get_operator("cufinufft")
 
         # Copy the smaps on gpu
         if smaps is not None:
@@ -173,17 +193,24 @@ class CufinufftSpaceFourier(SpaceFourierBase):
             smaps_gpu = None
         if len(samples) != n_frames:
             raise ValueError("size of samples and frames do not match")
-        self.fourier_ops = [None] * n_frames
-        for i in range(n_frames):
-            self.fourier_ops[i] = cufinufft_factory(
-                samples[i],
-                shape,
+        params = [
+            dict(
+                samples=samples[i],
+                shape=shape,
                 n_coils=n_coils,
                 smaps=smaps_gpu,
                 smaps_cached=True,
-                density=False,
+                density=density,
                 **kwargs,
             )
+            for i in range(n_frames)
+        ]
+        self.uses_sense = smaps is not None
+        self.shape = shape
+        self.n_coils = n_coils
+        self.smaps = smaps
+
+        self.fourier_ops = LazyFourierOps(get_operator("cufinufft"), params)
 
 
 class PooledgpuNUFFTSpaceFourier(SpaceFourierBase):
