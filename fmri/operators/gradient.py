@@ -8,6 +8,7 @@
 import numpy as np
 from modopt.math.matrix import PowerMethod
 from modopt.opt.gradient import GradBasic
+from modopt.base.backend import get_backend
 
 
 def check_lipschitz_cst(f, x_shape, x_dtype, lipschitz_cst, max_nb_of_iter=10):
@@ -86,6 +87,7 @@ class GradBaseMRI(GradBasic):
         verbose=0,
         dtype="np.float32",
         input_data_writeable=False,
+        compute_backend="numpy",
     ):
         # Initialize the GradBase with dummy data
         super().__init__(
@@ -94,12 +96,17 @@ class GradBaseMRI(GradBasic):
             trans_operator,
             input_data_writeable=input_data_writeable,
         )
+        self.xp, _ = get_backend(compute_backend)
         if lipschitz_cst is not None:
             self.spec_rad = lipschitz_cst
             self.inv_spec_rad = 1.0 / self.spec_rad
         else:
             calc_lips = PowerMethod(
-                self.trans_op_op, shape, data_type=dtype, auto_run=False
+                self.trans_op_op,
+                shape,
+                data_type=dtype,
+                auto_run=False,
+                compute_backend=compute_backend,
             )
             calc_lips.get_spec_rad(extra_factor=1.1, max_iter=lips_calc_max_iter)
             self.spec_rad = calc_lips.spec_rad
@@ -119,6 +126,33 @@ class GradBaseMRI(GradBasic):
             else:
                 if verbose > 0:
                     print("The lipschitz constraint is satisfied")
+
+    def _cost_method(self, *args, **kwargs):
+        """Calculate gradient component of the cost.
+
+        This method returns the l2 norm error of the difference between the
+        original data and the data obtained after optimisation.
+
+        Parameters
+        ----------
+        *args : tuple
+            Positional arguments
+        **kwargs : dict
+            Keyword arguments
+
+        Returns
+        -------
+        float
+            Gradient cost component
+
+        """
+        cost_val = 0.5 * self.xp.linalg.norm(self.obs_data - self.op(args[0])) ** 2
+
+        if "verbose" in kwargs and kwargs["verbose"]:
+            print(" - DATA FIDELITY (X):", cost_val)
+        if isinstance(cost_val, self.xp.ndarray):
+            return cost_val.item()
+        return cost_val
 
 
 class GradAnalysis(GradBaseMRI):

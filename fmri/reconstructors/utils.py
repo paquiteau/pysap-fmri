@@ -6,10 +6,10 @@ See Also
 Modopt.opt.algorithms
 """
 
-
 import numpy as np
 from modopt.opt.algorithms import POGM, ForwardBackward
 from modopt.opt.cost import costObj
+from modopt.base.backend import get_backend
 
 OPTIMIZERS = {"pogm": "synthesis", "fista": "analysis", None: None}
 
@@ -23,6 +23,7 @@ def initialize_opt(
     synthesis_init=False,
     opt_kwargs=None,
     metric_kwargs=None,
+    compute_backend="numpy",
 ):
     """
     Initialize an Optimizer with the suitable parameters.
@@ -49,10 +50,18 @@ def initialize_opt(
     Modopt.opt.algorithms
 
     """
+    xp, _ = get_backend(compute_backend)
     if x_init is None:
-        x_init = np.squeeze(
-            np.zeros(
-                (grad_op.fourier_op.n_coils, *grad_op.fourier_op.shape),
+        x_init = xp.squeeze(
+            xp.zeros(
+                (
+                    (
+                        grad_op.fourier_op.n_coils
+                        if not grad_op.fourier_op.uses_sense
+                        else 1
+                    ),
+                    *grad_op.fourier_op.shape,
+                ),
                 dtype="complex64",
             )
         )
@@ -67,6 +76,8 @@ def initialize_opt(
     metric_kwargs = metric_kwargs or dict()
 
     beta = grad_op.inv_spec_rad
+    if isinstance(beta, xp.ndarray):
+        beta = beta.item()
     if opt_kwargs.get("cost", None) == "auto":
         opt_kwargs["cost"] = costObj([grad_op, prox_op], verbose=False)
     if opt_name == "pogm":
@@ -81,6 +92,7 @@ def initialize_opt(
             beta_param=beta,
             sigma_bar=opt_kwargs.pop("sigma_bar", 0.96),
             auto_iterate=opt_kwargs.pop("auto_iterate", False),
+            compute_backend=compute_backend,
             **opt_kwargs,
             **metric_kwargs,
         )

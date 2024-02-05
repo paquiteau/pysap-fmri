@@ -1,8 +1,10 @@
 """Weighed proximity operators."""
+
 import numpy as np
 
 from modopt.opt.proximity import SparseThreshold
 from modopt.opt.linear import Identity
+from modopt.base.backend import get_array_module
 
 
 class WeightedSparseThreshold(SparseThreshold):
@@ -139,16 +141,17 @@ def _sure_est(data):
     ----------
     .. [#] https://pyyawt.readthedocs.io/_modules/pyyawt/denoising.html#ValSUREThresh
     """
+    xp = get_array_module(data)
     dataf = data.flatten()
     n = dataf.size
-    data_sorted = np.sort(np.abs(dataf)) ** 2
-    idx = np.arange(n - 1, -1, -1)
-    tmp = np.cumsum(data_sorted) + idx * data_sorted
+    data_sorted = xp.sort(xp.abs(dataf)) ** 2
+    idx = xp.arange(n - 1, -1, -1)
+    tmp = xp.cumsum(data_sorted) + idx * data_sorted
 
-    risk = (n - (2 * np.arange(n)) + tmp) / n
-    ibest = np.argmin(risk)
+    risk = (n - (2 * xp.arange(n)) + tmp) / n
+    ibest = xp.argmin(risk)
 
-    return np.sqrt(data_sorted[ibest])
+    return xp.sqrt(data_sorted[ibest])
 
 
 def _thresh_select(data, thresh_est):
@@ -227,8 +230,10 @@ def wavelet_noise_estimate(wavelet_coeffs, coeffs_shape, sigma_est):
     --------
     _sigma_mad: function estimating the standard deviation.
     """
-    sigma_ret = np.ones(len(coeffs_shape))
-    sigma_ret[0] = np.NaN
+    xp = get_array_module(wavelet_coeffs)
+
+    sigma_ret = xp.ones(len(coeffs_shape))
+    sigma_ret[0] = xp.NaN
     start = 0
     stop = 0
     if sigma_est is None:
@@ -242,10 +247,10 @@ def wavelet_noise_estimate(wavelet_coeffs, coeffs_shape, sigma_est):
         # use the diagonal coefficients subband to estimate the variance of the scale.
         # it assumes that the band of the same scale have the same shape.
         start = np.prod(coeffs_shape[0])
-        for i, scale_shape in enumerate(np.unique(coeffs_shape[1:], axis=0)):
+        for i, scale_shape in enumerate(xp.unique(coeffs_shape[1:], axis=0)):
             scale_sz = np.prod(scale_shape)
-            matched_bands = np.all(scale_shape == coeffs_shape[1:], axis=1)
-            bpl = np.sum(matched_bands)
+            matched_bands = xp.all(scale_shape == coeffs_shape[1:], axis=1)
+            bpl = xp.sum(matched_bands)
             start = start + scale_sz * (bpl - 1)
             stop = start + scale_sz * bpl
             sigma_ret[1 + i * (bpl) : 1 + (i + 1) * bpl] = _sigma_mad(
@@ -254,7 +259,7 @@ def wavelet_noise_estimate(wavelet_coeffs, coeffs_shape, sigma_est):
             start = stop
     elif sigma_est == "global":
         sigma_ret *= _sigma_mad(wavelet_coeffs[-np.prod(coeffs_shape[-1]) :])
-    sigma_ret[0] = np.NaN
+    sigma_ret[0] = xp.NaN
     return sigma_ret
 
 
@@ -291,7 +296,9 @@ def wavelet_threshold_estimate(
     numpy.ndarray
         array of threshold for each wavelet coefficient.
     """
-    weights = np.ones(wavelet_coeffs.shape)
+    xp = get_array_module(wavelet_coeffs)
+
+    weights = xp.ones(wavelet_coeffs.shape)
     weights[: np.prod(coeffs_shape[0])] = 0
 
     # Estimate the noise std on the specific range.
@@ -320,7 +327,7 @@ def wavelet_threshold_estimate(
     elif thresh_range == "scale":
         start = np.prod(coeffs_shape[0])
         start_hh = start
-        for i, scale_shape in enumerate(np.unique(coeffs_shape[1:], axis=0)):
+        for i, scale_shape in enumerate(xp.unique(coeffs_shape[1:], axis=0)):
             scale_sz = np.prod(scale_shape)
             matched_bands = np.all(scale_shape == coeffs_shape[1:], axis=1)
             band_per_scale = np.sum(matched_bands)

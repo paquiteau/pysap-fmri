@@ -4,6 +4,8 @@ Frame based reconstructors.
 this reconstructor consider the time frames (nostly) independently.
 
 """
+
+from modopt.base.backend import get_array_module, get_backend
 import numpy as np
 from tqdm.auto import tqdm, trange
 
@@ -52,11 +54,14 @@ class SequentialReconstructor(BaseFMRIReconstructor):
         max_iter_per_frame=15,
         grad_kwargs=None,
         warm_x=True,
+        compute_backend="numpy",
     ):
         """Reconstruct using sequential method."""
         grad_kwargs = {} if grad_kwargs is None else grad_kwargs
+        xp, _ = get_backend(compute_backend)
+
         if x_init is None:
-            x_init = np.zeros(self.fourier_op.shape, dtype="complex64")
+            x_init = xp.zeros(self.fourier_op.shape, dtype="complex64")
         final_estimate = np.zeros(
             (len(kspace_data), *self.fourier_op.shape),
             dtype=x_init.dtype,
@@ -71,11 +76,12 @@ class SequentialReconstructor(BaseFMRIReconstructor):
                 self.fourier_op.fourier_ops[i],
                 dtype=kspace_data.dtype,
                 input_data_writeable=True,
+                compute_backend=compute_backend,
                 **grad_kwargs,
             )
 
             # at each step a new frame is loaded
-            grad_op._obs_data = kspace_data[i, ...]
+            grad_op._obs_data = xp.array(kspace_data[i, ...])
             # reset Smaps and optimizer if required.
             opt = initialize_opt(
                 opt_name=self.opt_name,
@@ -86,13 +92,14 @@ class SequentialReconstructor(BaseFMRIReconstructor):
                 synthesis_init=False,
                 opt_kwargs={"cost": "auto"},
                 metric_kwargs={},
+                compute_backend=compute_backend,
             )
             # if no reset, the internal state is kept.
             # (e.g. dual variable, dynamic step size)
             if i == 0 and warm_x:
                 # The first frame takes more iterations to ensure convergence.
-                progbar.reset(total=3 * max_iter_per_frame)
-                opt.iterate(max_iter=3 * max_iter_per_frame, progbar=progbar)
+                progbar.reset(total=100 * max_iter_per_frame)
+                opt.iterate(max_iter=100 * max_iter_per_frame, progbar=progbar)
             else:
                 progbar.reset(total=max_iter_per_frame)
                 opt.iterate(max_iter=max_iter_per_frame, progbar=progbar)
@@ -103,7 +110,10 @@ class SequentialReconstructor(BaseFMRIReconstructor):
             else:
                 img = opt.x_final
             next_init = img if warm_x else x_init.copy()
-            final_estimate[i, ...] = img
+            if compute_backend == "cupy":
+                final_estimate[i, ...] = img.get()
+            else:
+                final_estimate[i, ...] = img
             # Progressbar update
         progbar.close()
         return final_estimate
