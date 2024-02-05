@@ -161,7 +161,7 @@ class RepeatOperator(SpaceFourierBase):
         return len(self.fourier_ops)
 
 
-class CufinufftSpaceFourier(RepeatOperator):
+class LazySpaceFourier(RepeatOperator):
     """A dedicated Space Fourier operator based on cufinufft.
 
     Requires a workable installation of cupy and cufinufft.
@@ -180,17 +180,16 @@ class CufinufftSpaceFourier(RepeatOperator):
     """
 
     def __init__(
-        self, samples, shape, n_frames, n_coils, smaps, density="cell_count", **kwargs
+        self,
+        backend,
+        samples,
+        shape,
+        n_frames,
+        n_coils,
+        smaps,
+        density="cell_count",
+        **kwargs,
     ):
-        if not CUPY_AVAILABLE:
-            raise RuntimeError("Cupy is not available")
-
-        # Copy the smaps on gpu
-        if smaps is not None:
-            smaps_gpu = cp.array(smaps)
-            n_coils = len(smaps)
-        else:
-            smaps_gpu = None
         if len(samples) != n_frames:
             raise ValueError("size of samples and frames do not match")
         params = [
@@ -198,8 +197,7 @@ class CufinufftSpaceFourier(RepeatOperator):
                 samples=samples[i],
                 shape=shape,
                 n_coils=n_coils,
-                smaps=smaps_gpu,
-                smaps_cached=True,
+                smaps=smaps,
                 density=density,
                 **kwargs,
             )
@@ -210,7 +208,7 @@ class CufinufftSpaceFourier(RepeatOperator):
         self.n_coils = n_coils
         self.smaps = smaps
 
-        self.fourier_ops = LazyFourierOps(get_operator("cufinufft"), params)
+        self.fourier_ops = LazyFourierOps(get_operator(backend), params)
 
 
 class PooledgpuNUFFTSpaceFourier(SpaceFourierBase):
@@ -289,7 +287,7 @@ class PooledgpuNUFFTSpaceFourier(SpaceFourierBase):
                 density = np.repeat(density[np.newaxis, ...], self.n_frames, axis=0)
             elif density.shape != (self.n_frames, self.n_samples):
                 raise ValueError("Density shape not understood")
-        elif isinstance(density, bool):
+        elif isinstance(density, (bool, str, dict)) or callable(density):
             density = [density] * self.n_frames
         elif not (isinstance(density, Sequence) and len(density) == self.n_frames):
             raise ValueError("Density shape not understood")
