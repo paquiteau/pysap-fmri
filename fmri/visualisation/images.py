@@ -78,6 +78,7 @@ def tile_view(
     n_cols=-1,
     img_w=3,
     fig=None,
+    transpose=False,
     cmap="gray",
     axis_label=None,
 ):
@@ -149,7 +150,8 @@ def tile_view(
         raise ValueError("The grid is not big enough to fit all samples.")
 
     aspect_ratio = array_list[0].shape[0] / array_list[0].shape[1]
-
+    if transpose:
+        aspect_ratio = 1 / aspect_ratio
     fig = plt.figure(num=fig, figsize=(n_cols * img_w, n_rows * img_w * aspect_ratio))
     gs = fig.add_gridspec(
         n_rows,
@@ -163,10 +165,12 @@ def tile_view(
     for i, img in enumerate(array_list):
         ax = axs[i]
         ax.axis("off")
+        if transpose:
+            img = img.T
         if np.any(np.iscomplex(img)):
-            ax.imshow(abs(img), cmap=cmap)
+            ax.imshow(abs(img), cmap=cmap, origin="lower")
         else:
-            ax.imshow(img, cmap=cmap)
+            ax.imshow(img, cmap=cmap, origin="lower")
         ax.text(
             0.05,
             0.95,
