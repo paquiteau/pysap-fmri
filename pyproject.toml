@@ -57,3 +57,6 @@ addopts = [
 [tool.pylsp-mypy]
 enabled = false
 live_mode = false
+
+[tool.mypy]
+enabled = false
