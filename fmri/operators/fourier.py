@@ -157,7 +157,7 @@ class RepeatOperator(SpaceFourierBase):
 
     @property
     def n_frames(self):
-        """Number of frames"""
+        """Number of frames."""
         return len(self.fourier_ops)
 
 
@@ -168,15 +168,20 @@ class LazySpaceFourier(RepeatOperator):
 
     Parameters
     ----------
-    samples: k space samples location of shape (n_frames, n_samples, 3)
-    shape: image domain shape
-    n_coils:
-    smaps:
+    samples: np.ndarray
+        k-space samples location of shape (n_frames, n_samples, 3)
+    shape: tuple
+        image domain shape
+    n_frames: int
+        number of frames
+    n_coils: int
+        number of coils
+    smaps: np.ndarray
+        sensitivity maps of shape (n_coils, *shape)
     density:
         density compensation profile of shape (n_frames, n_samples)
-
     **kwargs:
-        extra kwargs for cufinufft
+        extra kwargs
     """
 
     def __init__(
