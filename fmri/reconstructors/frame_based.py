@@ -5,11 +5,12 @@ this reconstructor consider the time frames (nostly) independently.
 
 """
 
-from modopt.base.backend import get_array_module, get_backend
+from modopt.base.backend import get_backend
 import numpy as np
 from tqdm.auto import tqdm, trange
 
 from ..operators.gradient import GradAnalysis, GradSynthesis
+from ..operators.svt import FlattenRankConstraint
 from .base import BaseFMRIReconstructor
 from .utils import OPTIMIZERS, initialize_opt
 
@@ -53,8 +54,8 @@ class SequentialReconstructor(BaseFMRIReconstructor):
         x_init=None,
         max_iter_per_frame=15,
         grad_kwargs=None,
-        warm_x=True,
         compute_backend="numpy",
+        restart_strategy="warm",
     ):
         """Reconstruct using sequential method."""
         grad_kwargs = {} if grad_kwargs is None else grad_kwargs
@@ -67,7 +68,17 @@ class SequentialReconstructor(BaseFMRIReconstructor):
             dtype=x_init.dtype,
         )
 
+        if restart_strategy == "warm-mean":
+            x_init = xp.array(np.mean(self.fourier_op.adj_op(kspace_data), axis=0))
+        if restart_strategy == "warm-pca":
+            x_inits = self.fourier_op.adj_op(kspace_data)
+            x_inits = x_inits.reshape(x_inits.shape[0], -1)
+            from scipy.sparse.linalg import svds
+
+            U, S, V = svds(x_inits, k=1)
+            x_init = V.reshape(self.fourier_op.shape)
         next_init = x_init
+        # Starting the loops
         progbar_main = trange(len(kspace_data), disable=self.progbar_disable)
         progbar = tqdm(total=max_iter_per_frame, disable=self.progbar_disable)
         for i in progbar_main:
@@ -96,7 +107,7 @@ class SequentialReconstructor(BaseFMRIReconstructor):
             )
             # if no reset, the internal state is kept.
             # (e.g. dual variable, dynamic step size)
-            if i == 0 and warm_x:
+            if i == 0 and restart_strategy == "warm":
                 # The first frame takes more iterations to ensure convergence.
                 progbar.reset(total=100 * max_iter_per_frame)
                 opt.iterate(max_iter=100 * max_iter_per_frame, progbar=progbar)
@@ -109,7 +120,7 @@ class SequentialReconstructor(BaseFMRIReconstructor):
                 img = self.space_linear_op.adj_op(opt.x_final)
             else:
                 img = opt.x_final
-            next_init = img if warm_x else x_init.copy()
+            next_init = img if restart_strategy == "warm" else x_init.copy()
             if compute_backend == "cupy":
                 final_estimate[i, ...] = img.get()
             else:
