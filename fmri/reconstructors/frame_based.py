@@ -60,23 +60,23 @@ class SequentialReconstructor(BaseFMRIReconstructor):
         """Reconstruct using sequential method."""
         grad_kwargs = {} if grad_kwargs is None else grad_kwargs
         xp, _ = get_backend(compute_backend)
+        final_estimate = np.zeros(
+            (len(kspace_data), *self.fourier_op.shape),
+            dtype=kspace_data.dtype,
+        )
 
         if x_init is None:
             x_init = xp.zeros(self.fourier_op.shape, dtype="complex64")
-        final_estimate = np.zeros(
-            (len(kspace_data), *self.fourier_op.shape),
-            dtype=x_init.dtype,
-        )
 
-        if restart_strategy == "warm-mean":
-            x_init = xp.array(np.mean(self.fourier_op.adj_op(kspace_data), axis=0))
-        if restart_strategy == "warm-pca":
-            x_inits = self.fourier_op.adj_op(kspace_data)
-            x_inits = x_inits.reshape(x_inits.shape[0], -1)
-            from scipy.sparse.linalg import svds
+            if restart_strategy == "warm-mean":
+                x_init = xp.array(np.mean(self.fourier_op.adj_op(kspace_data), axis=0))
+            if restart_strategy == "warm-pca":
+                x_inits = self.fourier_op.adj_op(kspace_data)
+                x_inits = x_inits.reshape(x_inits.shape[0], -1)
+                from scipy.sparse.linalg import svds
 
-            U, S, V = svds(x_inits, k=1)
-            x_init = V.reshape(self.fourier_op.shape)
+                U, S, V = svds(x_inits, k=1)
+                x_init = V.reshape(self.fourier_op.shape)
         next_init = x_init
         # Starting the loops
         progbar_main = trange(len(kspace_data), disable=self.progbar_disable)
