@@ -152,7 +152,10 @@ def tile_view(
     aspect_ratio = array_list[0].shape[0] / array_list[0].shape[1]
     if transpose:
         aspect_ratio = 1 / aspect_ratio
-    fig = plt.figure(num=fig, figsize=(n_cols * img_w, n_rows * img_w * aspect_ratio))
+    if fig is None or isinstance(fig, int):
+        fig = plt.figure(
+            num=fig, figsize=(n_cols * img_w, n_rows * img_w * aspect_ratio)
+        )
     gs = fig.add_gridspec(
         n_rows,
         n_cols,
