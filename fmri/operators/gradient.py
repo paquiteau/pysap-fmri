@@ -90,6 +90,8 @@ class GradBaseMRI(GradBasic):
         compute_backend="numpy",
     ):
         # Initialize the GradBase with dummy data
+        self._cost_method = self.cost
+        self._cost = self.cost
         super().__init__(
             np.array(0),
             operator,
@@ -127,7 +129,7 @@ class GradBaseMRI(GradBasic):
                 if verbose > 0:
                     print("The lipschitz constraint is satisfied")
 
-    def _cost_method(self, *args, **kwargs):
+    def _cost(self, *args, **kwargs):
         """Calculate gradient component of the cost.
 
         This method returns the l2 norm error of the difference between the
