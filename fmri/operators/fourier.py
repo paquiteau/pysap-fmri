@@ -93,6 +93,19 @@ class CartesianSpaceFourier(SpaceFourierBase):
         self.n_coils = n_coils
         self.smaps = smaps
 
+        self.fourier_ops = LazyFourierOps(
+            FFT_Sense,
+            [
+                {
+                    "shape": self.shape,
+                    "mask": self.mask[i],
+                    "smaps": self.smaps,
+                    "n_coils": self.n_coils,
+                }
+                for i in range(n_frames)
+            ],
+        )
+
     def op(self, img):
         axes = tuple(range(-len(self.shape), 0))
         if self.n_coils > 1:
@@ -371,6 +384,11 @@ class FFT_Sense(SpaceFourierBase):
         self.n_coils = n_coils
         self.mask = mask
         self.smaps = smaps
+
+    @property
+    def uses_sense(self):
+        """True if operator uses smaps."""
+        return self.smaps is not None
 
     def op(self, img):
         """Apply the forward operator."""
