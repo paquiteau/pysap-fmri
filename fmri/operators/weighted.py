@@ -1,10 +1,14 @@
 """Weighed proximity operators."""
 
+import logging
 import numpy as np
 
 from modopt.opt.proximity import SparseThreshold
 from modopt.opt.linear import Identity
 from modopt.base.backend import get_array_module
+
+
+logger = logging.getLogger("pysap-fmri")
 
 
 class WeightedSparseThreshold(SparseThreshold):
@@ -424,6 +428,8 @@ class AutoWeightedSparseThreshold(SparseThreshold):
             weights = self._thresh_scale(weights, self._n_op_calls)
         else:
             weights *= self._thresh_scale
+        xp = get_array_module(weights)
+        logger.info(xp.unique(weights))
         return weights
 
     def _op_method(self, input_data, extra_factor=1.0):
