@@ -7,6 +7,7 @@ this reconstructor consider the time frames (nostly) independently.
 
 from modopt.base.backend import get_backend
 import numpy as np
+import copy
 from tqdm.auto import tqdm, trange
 
 from ..operators.gradient import GradAnalysis, GradSynthesis
@@ -58,13 +59,14 @@ class SequentialReconstructor(BaseFMRIReconstructor):
         restart_strategy="warm",
     ):
         """Reconstruct using sequential method."""
+        self.compute_backend = compute_backend
         grad_kwargs = {} if grad_kwargs is None else grad_kwargs
         xp, _ = get_backend(compute_backend)
         final_estimate = np.zeros(
             (len(kspace_data), *self.fourier_op.shape),
             dtype=kspace_data.dtype,
         )
-
+        opt_kwargs = {"cost": "auto"}
         if x_init is None:
             x_init = xp.zeros(self.fourier_op.shape, dtype="complex64")
 
@@ -82,49 +84,130 @@ class SequentialReconstructor(BaseFMRIReconstructor):
         progbar_main = trange(len(kspace_data), disable=self.progbar_disable)
         progbar = tqdm(total=max_iter_per_frame, disable=self.progbar_disable)
         for i in progbar_main:
-            # only recreate gradient if the trajectory change.
-            grad_op = self.get_grad_op(
-                self.fourier_op.fourier_ops[i],
-                dtype=kspace_data.dtype,
-                input_data_writeable=True,
-                compute_backend=compute_backend,
-                **grad_kwargs,
+            x_iter = self._reconstruct_frame(
+                kspace_data,
+                i,
+                next_init,
+                grad_kwargs,
+                opt_kwargs,
+                max_iter_per_frame,
+                progbar,
             )
-
-            # at each step a new frame is loaded
-            grad_op._obs_data = xp.array(kspace_data[i, ...])
-            # reset Smaps and optimizer if required.
-            opt = initialize_opt(
-                opt_name=self.opt_name,
-                grad_op=grad_op,
-                linear_op=self.space_linear_op,
-                prox_op=self.space_prox_op,
-                x_init=next_init,
-                synthesis_init=False,
-                opt_kwargs={"cost": "auto"},
-                metric_kwargs={},
-                compute_backend=compute_backend,
-            )
-            # if no reset, the internal state is kept.
-            # (e.g. dual variable, dynamic step size)
-            if i == 0 and restart_strategy == "warm":
-                # The first frame takes more iterations to ensure convergence.
-                progbar.reset(total=100 * max_iter_per_frame)
-                opt.iterate(max_iter=100 * max_iter_per_frame, progbar=progbar)
-            else:
-                progbar.reset(total=max_iter_per_frame)
-                opt.iterate(max_iter=max_iter_per_frame, progbar=progbar)
-
             # Prepare for next iteration and save results
-            if self.grad_formulation == "synthesis":
-                img = self.space_linear_op.adj_op(opt.x_final)
-            else:
-                img = opt.x_final
-            next_init = img if restart_strategy == "warm" else x_init.copy()
+            next_init = x_iter if restart_strategy == "warm" else x_init.copy()
             if compute_backend == "cupy":
-                final_estimate[i, ...] = img.get()
+                final_estimate[i, ...] = x_iter.get()
             else:
-                final_estimate[i, ...] = img
+                final_estimate[i, ...] = x_iter
             # Progressbar update
+        progbar.close()
+        return final_estimate
+
+    def _reconstruct_frame(
+        self, kspace_data, i, x_init, grad_kwargs, opt_kwargs, n_iter, progbar
+    ):
+
+        xp, _ = get_backend(self.compute_backend)
+        # only recreate gradient if the trajectory change.
+        grad_op = self.get_grad_op(
+            self.fourier_op.fourier_ops[i],
+            dtype=kspace_data.dtype,
+            input_data_writeable=True,
+            compute_backend=self.compute_backend,
+            **grad_kwargs,
+        )
+
+        # at each step a new frame is loaded
+        grad_op._obs_data = xp.array(kspace_data[i, ...])
+        # reset Smaps and optimizer if required.
+        opt = initialize_opt(
+            opt_name=self.opt_name,
+            grad_op=grad_op,
+            linear_op=copy.deepcopy(self.space_linear_op),
+            prox_op=copy.deepcopy(self.space_prox_op),
+            x_init=x_init,
+            synthesis_init=False,
+            opt_kwargs=opt_kwargs,
+            metric_kwargs={},
+            compute_backend=self.compute_backend,
+        )
+        # if no reset, the internal state is kept.
+        if progbar is not None:
+            progbar.reset(total=n_iter)
+        opt.iterate(max_iter=n_iter, progbar=progbar)
+        if self.grad_formulation == "synthesis":
+            img = self.space_linear_op.adj_op(opt.x_final)
+        else:
+            img = opt.x_final
+        return img
+
+
+class DoubleSequentialReconstructor(SequentialReconstructor):
+    """
+    Sequential Reconstruction of fMRI data done in two steps.
+
+    First a classical Sequential Reconstruction using a small number of iteration
+    per frame is done, to get a rough estimate of the data.
+    Then a second Sequential Reconstruction is done using the first estimate as
+    initialization. This second reconstruction can be understand as a fine-tuning
+    of the first estimate on each frame data. This can be done in parallel.
+
+    """
+
+    def reconstruct(
+        self,
+        kspace_data,
+        x_init=None,
+        max_iter_per_frame=15,
+        grad_kwargs=None,
+        compute_backend="numpy",
+        restart_strategy="warm",
+    ):
+        """Reconstruct using sequential method."""
+        self.compute_backend = compute_backend
+        grad_kwargs = {} if grad_kwargs is None else grad_kwargs
+        opt_kwargs = {"cost": "auto"}
+        xp, _ = get_backend(compute_backend)
+        final_estimate = np.zeros(
+            (len(kspace_data), *self.fourier_op.shape),
+            dtype=kspace_data.dtype,
+        )
+
+        if x_init is None:
+            x_init = xp.zeros(self.fourier_op.shape, dtype="complex64")
+        next_init = x_init
+        # Starting the loops
+        progbar_main = trange(len(kspace_data), disable=self.progbar_disable)
+        progbar = tqdm(total=max_iter_per_frame, disable=self.progbar_disable)
+        for i in progbar_main:
+            x_iter = self._reconstruct_frame(
+                kspace_data,
+                i,
+                next_init,
+                grad_kwargs,
+                opt_kwargs,
+                max_iter_per_frame,
+                progbar,
+            )
+            # Prepare for next iteration and save results
+            next_init = x_iter
+            # Progressbar update
+        progbar_main.reset(total=len(kspace_data))
+        for i in progbar_main:
+            x_iter = self._reconstruct_frame(
+                kspace_data,
+                i,
+                next_init,
+                grad_kwargs,
+                {"cost": "auto"},
+                max_iter_per_frame,
+                None,
+            )
+
+            if compute_backend == "cupy":
+                final_estimate[i, ...] = x_iter.get()
+            else:
+                final_estimate[i, ...] = x_iter
+
         progbar.close()
         return final_estimate
