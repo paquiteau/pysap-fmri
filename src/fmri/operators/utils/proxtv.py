@@ -1,4 +1,5 @@
 """Proximity Operator for Total Variation in 1D."""
+
 import numpy as np
 
 import numba as nb

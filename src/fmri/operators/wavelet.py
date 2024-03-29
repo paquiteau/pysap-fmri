@@ -1,4 +1,5 @@
 """Wavelet operator, build around PyWavelet."""
+
 import warnings
 from modopt.opt.linear import LinearParent
 import pywt

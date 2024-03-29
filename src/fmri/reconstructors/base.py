@@ -6,6 +6,7 @@ See Also
 fmri.reconstructors.frame_base
 fmri.reconstructors.full
 """
+
 import warnings
 
 from modopt.opt.linear import Identity

@@ -1,4 +1,5 @@
 """Proximity Operators."""
+
 from modopt.opt.linear import Identity
 from modopt.opt.proximity import SparseThreshold
 from modopt.opt.gradient import GradBasic

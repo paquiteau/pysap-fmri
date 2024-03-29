@@ -1,4 +1,5 @@
 """Operator applied voxel wise on the timeserie data."""
+
 import numpy as np
 import scipy as sp
 import pywt

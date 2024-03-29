@@ -1,4 +1,5 @@
 """Utilities for fMRI Operators."""
+
 import numpy as np
 from modopt.opt.gradient import GradBasic
 
