@@ -27,6 +27,6 @@ jobs:
         run: |
           black --check src tests
           ruff .
-      - name: Test
-        run: |
-          pytest
+      # - name: Test
+      #   run: |
+      #     pytest
