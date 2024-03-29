@@ -24,6 +24,8 @@ def memory_cleanup(gpu=None):
 
 
 def with_engine(fun):
+    """Decorate to handle engine type."""
+
     @wraps(fun)
     def wrapper(self, data, **kwargs):
         if self._engine == "gpu":
@@ -150,6 +152,7 @@ class RankConstraint(ProximityParent):
         self._rank = rank
 
     def op(self, data, extra_factor=1.0):
+        """Perform singular values thresholding with rank constraint."""
         max_rank = min(data.shape) - 2
         compute_rank = min(self._rank, max_rank)
         U, S, V = sp.sparse.linalg.svds(data, k=compute_rank)

@@ -8,6 +8,8 @@ from .wavelet import WaveletTransform
 
 
 class TimeOperator:
+    """Operator applied voxel wise on the timeserie data."""
+
     def __init__(self, op, adj_op, shape, n_frames):
         """Initialize the operator.
 

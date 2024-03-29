@@ -1,7 +1,6 @@
 """Reconstructor for fMRI data using full reconstruction paradigm."""
 
 from functools import partial
-import time
 
 import numpy as np
 import scipy as sp

@@ -159,6 +159,7 @@ tv_taut_string.jitter = nb.njit(
 
 
 def fast_cost(y, x, r, lmbd):
+    """Compute cost function for the MM algorithm."""
     return 0.5 * np.sqrt(np.sum(np.abs(y - x) ** 2)) + lmbd * np.sum(r)
 
 
@@ -172,7 +173,7 @@ fast_cost.jitter = nb.njit(
 
 
 def difft(x):
-    """Apply the matrix D^T to x.
+    r"""Apply the matrix D^T to x.
 
     Parameters
     ----------
@@ -212,7 +213,7 @@ difft.jitter = nb.njit(
 
 
 def TDMA(a, b, c, d, x):
-    """
+    r"""
     Solve a tridiagonal system of equations.
 
     Parameters
@@ -271,6 +272,7 @@ TDMA.jitter = nb.njit(
 
 
 def tv_mm(y, lmbd, max_iter=100, tol=1e-3):
+    """Total Variation denoising using the Majoration-Minimization algorithm."""
     N = len(y)
     ddt_up = -np.ones(N - 1, dtype=y.dtype)
     ddt_diag = 2 * np.ones(N - 1, dtype=y.dtype)
@@ -305,6 +307,7 @@ tv_mm.jitter = nb.njit(
 
 
 def vec_tv_mm(yvec, lmbd, max_iter=100, tol=1e-3):
+    """Vectorized version of the TV-MM algorithm."""
     xvec2 = np.empty_like(yvec)
     for i in nb.prange(yvec.shape[1]):
         if np.max(np.abs(yvec[:, i] - np.mean(yvec[:, i]))) < lmbd:
@@ -447,6 +450,7 @@ gtv_mm_tol2.jitter = nb.njit(
 
 
 def vec_gtv(yvec, lmbd, K, max_iter=100, tol=1e-3):
+    """Vectorized version of the GTV-MM algorithm."""
     xvec2 = np.empty_like(yvec)
     for i in nb.prange(yvec.shape[1]):
         # all variations would be wiped out, exit early.

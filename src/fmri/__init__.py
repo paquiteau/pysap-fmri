@@ -1,3 +1,5 @@
+"""fMRI plugin for PySAP."""
+
 import logging
 
 

@@ -11,7 +11,6 @@ import copy
 from tqdm.auto import tqdm, trange
 
 from ..operators.gradient import GradAnalysis, GradSynthesis
-from ..operators.svt import FlattenRankConstraint
 from .base import BaseFMRIReconstructor
 from .utils import OPTIMIZERS, initialize_opt
 

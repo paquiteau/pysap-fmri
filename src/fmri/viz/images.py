@@ -1,3 +1,5 @@
+"""Utility functions to plot and display images."""
+
 import time
 
 import matplotlib.pyplot as plt

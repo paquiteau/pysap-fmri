@@ -9,7 +9,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
 import numpy as np
-from joblib import Parallel, delayed
 from mrinufft import get_operator
 
 try:
@@ -23,7 +22,6 @@ MRINUFFT_AVAILABLE = True
 CUPY_AVAILABLE = True
 
 try:
-    import cupy as cp
     import cupyx as cx
 except ImportError:
     CUPY_AVAILABLE = False
@@ -107,6 +105,18 @@ class CartesianSpaceFourier(SpaceFourierBase):
         )
 
     def op(self, img):
+        """Forward operator.
+
+        Parameters
+        ----------
+        img : array
+            Image in space.
+
+        Returns
+        -------
+        ksp : array
+            kspace data.
+        """
         axes = tuple(range(-len(self.shape), 0))
         if self.n_coils > 1:
             if self.smaps is not None:
@@ -144,6 +154,8 @@ class CartesianSpaceFourier(SpaceFourierBase):
 
 
 class RepeatOperator(SpaceFourierBase):
+    """Use a sequence of operator for multiple frames."""
+
     def __init__(self, fourier_ops):
         self.fourier_ops = list(fourier_ops)
 

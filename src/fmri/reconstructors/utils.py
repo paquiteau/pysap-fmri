@@ -6,7 +6,6 @@ See Also
 Modopt.opt.algorithms
 """
 
-import numpy as np
 from modopt.opt.algorithms import POGM, ForwardBackward
 from modopt.opt.cost import costObj
 from modopt.base.backend import get_backend

@@ -1,3 +1,5 @@
+"""FFT operators for MRI reconstruction."""
+
 import scipy as sp
 
 

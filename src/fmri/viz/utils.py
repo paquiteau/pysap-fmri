@@ -1,3 +1,5 @@
+"""Utility functions for viz module."""
+
 import numpy as np
 
 

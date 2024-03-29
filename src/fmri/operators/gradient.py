@@ -1,9 +1,7 @@
-# #############################################################################
-#  pySAP - Copyright (C) CEA, 2017 - 2018                                     #
-#  Distributed under the terms of the CeCILL-B license,                       #
-#  as published by the CEA-CNRS-INRIA. Refer to the LICENSE file or to        #
-#  http://www.cecill.info/licences/Licence_CeCILL-B_V1-en.html for details.   #
-# #############################################################################
+""""Gradient operators for MRI reconstruction.
+
+Adapted from pysap-mri and Modopt libraries.
+"""
 
 import numpy as np
 from modopt.math.matrix import PowerMethod
@@ -13,10 +11,11 @@ from modopt.base.backend import get_backend
 
 def check_lipschitz_cst(f, x_shape, x_dtype, lipschitz_cst, max_nb_of_iter=10):
     """
-    This methods check that for random entrees the lipschitz constraint are
-    statisfied:
+    Check lipschitz constant.
 
-    * ||f(x)-f(y)|| < lipschitz_cst ||x-y||
+    This methods check that for random entrees the lipschitz constraint verify:
+
+    ||f(x)-f(y)|| < lipschitz_cst ||x-y||
 
     Parameters
     ----------
@@ -50,7 +49,9 @@ def check_lipschitz_cst(f, x_shape, x_dtype, lipschitz_cst, max_nb_of_iter=10):
 
 
 class GradBaseMRI(GradBasic):
-    """Base Gradient class for all gradient operators
+    """
+    Base Gradient class for all gradient operators.
+
     Implements the gradient of following function with respect to x:
     .. math:: ||M x - y|| ^ 2.
 
@@ -159,6 +160,7 @@ class GradBaseMRI(GradBasic):
 
 class GradAnalysis(GradBaseMRI):
     """Gradient Analysis class.
+
     This class defines the grad operators for:
     (1/2) * sum(||F x - yl||^2_2,l).
 
@@ -186,6 +188,7 @@ class GradAnalysis(GradBaseMRI):
 
 class GradSynthesis(GradBaseMRI):
     """Gradient Synthesis class.
+
     This class defines the grad operators for:
     (1/2) * sum(||F Psi_t alpha - yl||^2_2,l).
 

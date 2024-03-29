@@ -1,3 +1,5 @@
+"""Reconstructors for fMRI data."""
+
 from .base import BaseFMRIReconstructor
 
 from .frame_based import SequentialReconstructor

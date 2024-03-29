@@ -1,1 +1,1 @@
-from .images import tile_view
+"""Vizualization tools for the project."""
