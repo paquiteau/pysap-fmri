@@ -25,8 +25,8 @@ jobs:
           pip install -e .[test,dev]
       - name: Linter
         run: |
-          black --check src tests
-          ruff .
+          black --check .
+          ruff check .
       # - name: Test
       #   run: |
       #     pytest

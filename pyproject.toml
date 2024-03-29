@@ -9,7 +9,7 @@ dependencies = ["modopt", "numpy", "tqdm", "joblib", "numba", "scipy", "pywavele
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov", "pytest-xdist", "pytest-sugar"]
 doc = ["pydata-sphinx-theme", "numpydoc", "sphinx_gallery", "sphinx", "sphinx-autoapi"]
-dev = ["black", "isort", "flake8-pyproject", "flake8-black"]
+dev = ["black", "isort", "ruff"]
 
 [build-system]
 requires = ["setuptools", "wheel"]
