@@ -1,4 +1,5 @@
 """Reconstructor for fMRI data using full reconstruction paradigm."""
+
 from functools import partial
 import time
 
@@ -251,8 +252,8 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
         Lprev = M.copy()
         costs = np.zeros(max_iter)
         for i in tqdm(range(max_iter)):
-            L = self.space_prox_op.op(M - S)
-            S = self.time_prox_op.op(M - Lprev)
+            L = self.space_prox_op.op(M - S, extra_factor=grad_step)
+            S = self.time_prox_op.op(M - Lprev, extra_factor=grad_step)
             resk = self.fourier_op.op(L + S) - kspace_data
             M = L + S
             M -= grad_step * self.fourier_op.adj_op(resk)
@@ -293,7 +294,7 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
         for i in tqdm(range(max_iter)):
             # L = self.space_prox_op.op(M - S)
             Ut, St, Vt = sp.linalg.svd((M - S).reshape(nt, -1), full_matrices=False)
-            St = softthresh(St, np.max(St) * lambda_l)
+            St = softthresh(St, np.max(St) * lambda_l * grad_step)
             L = np.reshape((Ut * St) @ Vt, (nt, *self.fourier_op.shape))
             # S = self.time_prox_op.op(M - Lprev)
 
@@ -302,7 +303,7 @@ class LowRankPlusSparseReconstructor(BaseFMRIReconstructor):
                 axis=0,
                 norm="ortho",
             )
-            Sf = softthresh(Sf, lambda_s)
+            Sf = softthresh(Sf, lambda_s * grad_step)
 
             S = sp.fft.ifftshift(sp.fft.ifft(Sf, axis=0, norm="ortho"), axes=0).reshape(
                 nt, *self.fourier_op.shape
