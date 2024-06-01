@@ -382,6 +382,7 @@ class AutoWeightedSparseThreshold(SparseThreshold):
         thresh_range="global",
         threshold_estimation="sure",
         threshold_scaler=1.0,
+        synthesis=True,
         **kwargs
     ):
         if linear is None:
@@ -389,6 +390,7 @@ class AutoWeightedSparseThreshold(SparseThreshold):
         self._n_op_calls = 0
         self.cf_shape = coeffs_shape
         self._update_period = update_period
+        self.synthesis = synthesis
 
         if thresh_range not in ["bands", "scale", "global"]:
             raise ValueError("Unsupported threshold range.")
@@ -451,10 +453,16 @@ class AutoWeightedSparseThreshold(SparseThreshold):
             Thresholded data
 
         """
+        if not self.synthesis:
+            input_data = self._linear.op(input_data)
         if self._update_period == 0 and self._n_op_calls == 0:
             self.weights = self._auto_thresh(input_data)
         if self._update_period != 0 and self._n_op_calls % self._update_period == 0:
             self.weights = self._auto_thresh(input_data)
 
         self._n_op_calls += 1
-        return super()._op_method(input_data, extra_factor=extra_factor)
+        threshed = super()._op_method(input_data, extra_factor=extra_factor)
+
+        if not self.synthesis:
+            return self._linear.adj_op(threshed)
+        return threshed

@@ -10,6 +10,7 @@ from collections.abc import Sequence
 
 import numpy as np
 from mrinufft import get_operator
+from modopt.base.backend import get_array_module
 
 try:
     from mrinufft.operators.interfaces.gpunufft import make_pinned_smaps
@@ -171,7 +172,8 @@ class RepeatOperator(SpaceFourierBase):
     def adj_op(self, coeffs):
         """Apply Adjoint Operator."""
         c = 1 if self.uses_sense else self.n_coils
-        final_image = np.empty((self.n_frames, c, *self.shape), dtype=np.complex64)
+        xp = get_array_module(coeffs)
+        final_image = xp.empty((self.n_frames, c, *self.shape), dtype=np.complex64)
         for i in range(len(coeffs)):
             final_image[i] = self.fourier_ops[i].adj_op(coeffs[i])
         return final_image.squeeze()
