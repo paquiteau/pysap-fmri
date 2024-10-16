@@ -430,8 +430,6 @@ class AutoWeightedSparseThreshold(SparseThreshold):
             weights = self._thresh_scale(weights, self._n_op_calls)
         else:
             weights *= self._thresh_scale
-        xp = get_array_module(weights)
-        logger.info(xp.unique(weights))
         return weights
 
     def _op_method(self, input_data, extra_factor=1.0):

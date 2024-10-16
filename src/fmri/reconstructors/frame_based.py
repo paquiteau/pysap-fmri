@@ -5,6 +5,9 @@ this reconstructor consider the time frames (nostly) independently.
 
 """
 
+import cupy as cp
+import logging
+
 import gc
 from functools import cached_property
 
@@ -13,13 +16,16 @@ import numpy as np
 import copy
 from tqdm.auto import tqdm, trange
 
-from ..operators.gradient import GradAnalysis, GradSynthesis
+from ..operators.gradient import GradAnalysis, GradSynthesis, CustomGradAnalysis
 from .base import BaseFMRIReconstructor
 from .utils import OPTIMIZERS, initialize_opt
 
 from modopt.opt.algorithms import POGM
 from modopt.opt.linear import Identity
+from modopt.opt.gradient import GradParent
 from ..optimizer import AccProxSVRG, MS2GD
+
+logger = logging.getLogger("pysap-fmri")
 
 
 class SequentialReconstructor(BaseFMRIReconstructor):
@@ -107,6 +113,8 @@ class SequentialReconstructor(BaseFMRIReconstructor):
                 final_estimate[i, ...] = x_iter
             # Progressbar update
         progbar.close()
+
+        logger.info("final prox weight: %f ", xp.unique(self.space_prox_op.weights))
         return final_estimate
 
     def _reconstruct_frame(
@@ -219,34 +227,6 @@ class DoubleSequentialReconstructor(SequentialReconstructor):
         return final_estimate
 
 
-class CustomGradAnalysis:
-    """Custom Gradient Analysis Operator."""
-
-    def __init__(self, fourier_op, obs_data):
-        self.fourier_op = fourier_op
-        self.obs_data = obs_data
-        self.shape = fourier_op.shape
-
-    def get_grad(self, x):
-        """Get the gradient value"""
-        self.grad = self.fourier_op.data_consistency(x, self.obs_data)
-        return self.grad
-
-    @cached_property
-    def spec_rad(self):
-        return self.fourier_op.get_lipschitz_cst()
-
-    def inv_spec_rad(self):
-        return 1.0 / self.spec_rad
-
-    def cost(self, x, *args, **kwargs):
-        xp = get_array_module(x)
-        cost = xp.linalg.norm(self.fourier_op.op(x) - self.obs_data)
-        if xp != np:
-            return cost.get()
-        return cost
-
-
 class StochasticSequentialReconstructor(BaseFMRIReconstructor):
     """Stochastic Sequential Reconstruction of fMRI data."""
 
@@ -255,11 +235,17 @@ class StochasticSequentialReconstructor(BaseFMRIReconstructor):
         fourier_op,
         space_linear_op,
         space_prox_op,
+        space_prox_op_refine=None,
         progbar_disable=False,
         compute_backend="numpy",
         **kwargs,
     ):
         super().__init__(fourier_op, space_linear_op, space_prox_op, **kwargs)
+
+        if space_prox_op_refine is None:
+            self.space_prox_op_refine = space_prox_op
+        else:
+            self.space_prox_op_refine = space_prox_op_refine
 
         self.progbar_disable = progbar_disable
         self.compute_backend = compute_backend
@@ -269,6 +255,7 @@ class StochasticSequentialReconstructor(BaseFMRIReconstructor):
         kspace_data,
         x_init=None,
         max_iter_per_frame=15,
+        max_iter_stochastic=20,
         grad_kwargs=None,
         algorithm="accproxsvrg",
         progbar_disable=False,
@@ -283,6 +270,7 @@ class StochasticSequentialReconstructor(BaseFMRIReconstructor):
         xp, _ = get_backend(self.compute_backend)
         # Create the gradients operators
         grad_list = []
+        tmp_ksp = cp.zeros_like(kspace_data[0])
         for i, fop in enumerate(self.fourier_op.fourier_ops):
             # L = fop.get_lipschitz_cst()
 
@@ -296,7 +284,7 @@ class StochasticSequentialReconstructor(BaseFMRIReconstructor):
             #     input_data_writeable=True,
             # )
             # g._obs_data = kspace_data[i, ...]
-            g = CustomGradAnalysis(fop, kspace_data[i, ...])
+            g = CustomGradAnalysis(fop, kspace_data[i, ...], obs_data_gpu=tmp_ksp)
             grad_list.append(g)
 
         max_lip = max(g.spec_rad for g in grad_list)
@@ -307,10 +295,9 @@ class StochasticSequentialReconstructor(BaseFMRIReconstructor):
                 x=xp.zeros(grad_list[0].shape, dtype="complex64"),
                 grad_list=grad_list,
                 prox=self.space_prox_op,
-                step_size=1.0 / max_lip,
+                step_size=1.0 / 2 * max_lip,
                 auto_iterate=False,
                 cost=None,
-                update_frequency=10,
                 compute_backend=self.compute_backend,
                 **algorithm_kwargs,
             )
@@ -323,12 +310,11 @@ class StochasticSequentialReconstructor(BaseFMRIReconstructor):
                 prox=self.space_prox_op,
                 step_size=1.0 / max_lip,
                 auto_iterate=False,
-                update_frequency=10,
                 cost=None,
                 **algorithm_kwargs,
             )
 
-        opt.iterate(max_iter=20)
+        opt.iterate(max_iter=max_iter_stochastic)
 
         x_anat = opt.x_final.squeeze()
 
@@ -348,7 +334,7 @@ class StochasticSequentialReconstructor(BaseFMRIReconstructor):
                 x_anat,
                 x_anat,
                 grad=grad_list[i],
-                prox=self.space_prox_op,
+                prox=self.space_prox_op_refine,
                 linear=Identity(),
                 beta=grad_list[i].inv_spec_rad,
                 compute_backend=self.compute_backend,
@@ -360,9 +346,9 @@ class StochasticSequentialReconstructor(BaseFMRIReconstructor):
             progbar.reset(total=max_iter_per_frame)
             img = opt.x_final
 
-        if self.compute_backend == "cupy":
-            final_img[i] = img.get()
-        else:
-            final_img[i] = img
+            if self.compute_backend == "cupy":
+                final_img[i] = img.get().squeeze()
+            else:
+                final_img[i] = img
 
         return final_img, x_anat

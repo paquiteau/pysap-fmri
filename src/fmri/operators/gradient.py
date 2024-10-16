@@ -3,10 +3,13 @@
 Adapted from pysap-mri and Modopt libraries.
 """
 
+from functools import cached_property
+
 import numpy as np
+import cupy as cp
 from modopt.math.matrix import PowerMethod
-from modopt.opt.gradient import GradBasic
-from modopt.base.backend import get_backend
+from modopt.opt.gradient import GradBasic, GradParent
+from modopt.base.backend import get_backend, get_array_module
 
 
 def check_lipschitz_cst(f, x_shape, x_dtype, lipschitz_cst, max_nb_of_iter=10):
@@ -224,3 +227,41 @@ class GradSynthesis(GradBaseMRI):
 
     def _trans_op_method(self, data):
         return self.linear_op.op(self.fourier_op.adj_op(data))
+
+
+class CustomGradAnalysis(GradParent):
+    """Custom Gradient Analysis Operator."""
+
+    def __init__(self, fourier_op, obs_data, obs_data_gpu=None, lazy=True):
+        self.fourier_op = fourier_op
+        self._grad_data_type = np.complex64
+        self._obs_data = obs_data
+        if obs_data_gpu is None:
+            self.obs_data_gpu = cp.array(obs_data)
+        elif isinstance(obs_data_gpu, cp.ndarray):
+            self.obs_data_gpu = obs_data_gpu
+        else:
+            raise ValueError("Invalid data type for obs_data_gpu")
+        self.lazy = lazy
+        self.shape = fourier_op.shape
+
+    def get_grad(self, x):
+        """Get the gradient value"""
+        if self.lazy:
+            self.obs_data_gpu.set(self.obs_data)
+        self.grad = self.fourier_op.data_consistency(x, self.obs_data_gpu)
+        return self.grad
+
+    @cached_property
+    def spec_rad(self):
+        return self.fourier_op.get_lipschitz_cst()
+
+    def inv_spec_rad(self):
+        return 1.0 / self.spec_rad
+
+    def cost(self, x, *args, **kwargs):
+        xp = get_array_module(x)
+        cost = xp.linalg.norm(self.fourier_op.op(x) - self.obs_data)
+        if xp != np:
+            return cost.get()
+        return cost

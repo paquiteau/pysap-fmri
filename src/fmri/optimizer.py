@@ -31,7 +31,7 @@ class AccProxSVRG(SetUp):
     def __init__(
         self,
         x,
-        grad_list,
+        fourier_op_list,
         prox,
         cost="auto",
         step_size=1.0,
@@ -79,7 +79,7 @@ class AccProxSVRG(SetUp):
         self._v_tld = self.xp.zeros_like(self._v_tld)
         # Compute the average gradient.
         for g in self._grad_ops:
-            self._v_tld += g.get_grad(self._x_old)
+            self._v_tld += g.get_grad(self._x_tld)
         self._v_tld /= len(self._grad_ops)
 
         self.xp.copyto(self._x_old, self._x_tld)
@@ -89,16 +89,17 @@ class AccProxSVRG(SetUp):
             self.xp.copyto(self._v, self._v_tld)
             self._v *= self.batch_size
             for g in gIk:
-                self._v += g.get_grad(self._x_tld)
-                self._v -= g.get_grad(self._y)
+                self._v -= g.get_grad(self._x_tld)
+                self._v += g.get_grad(self._y)
             self._v *= self.step_size / self.batch_size
-            self._x_new = self._y - self._v  # Reuse the array
+            self.xp.copyto(self._x_new, self._y)
+            self._x_new -= self._v  # Reuse the array
             self._x_new = self._prox.op(self._x_new, extra_factor=self.step_size)
-            self._v = self._x_new - self._x_old  # Reuse the array
-
-            self._y = self._x_new + self.beta * self._v
+            self.xp.copyto(self._v, self._x_new)
+            self._v -= self._x_old  # Reuse the array
+            self.xp.copyto(self._y, self._x_new)
+            self._y += self.beta * self._v
             self.xp.copyto(self._x_old, self._x_new)
-
         self.xp.copyto(self._x_tld, self._x_new)
 
         # Test cost function for convergence.
@@ -184,14 +185,13 @@ class MS2GD(SetUp):
         super().__init__(**kwargs)
 
         # Set the initial variable values
-        self._check_input_data(x)
 
         self.step_size = step_size
 
         self.update_frequency = update_frequency
         self.batch_size = batch_size
         self._grad_ops = grad_list
-        self._prox_op = prox
+        self._prox = prox
 
         self._rng = np.random.default_rng(seed)
 
@@ -213,9 +213,9 @@ class MS2GD(SetUp):
             self._g += g.get_grad(self._x)
         self._g /= len(self._grad_ops)
         self.xp.copyto(self._y, self._x)
-        tk = self.rng.randint(1, self.update_frequency)
+        tk = self._rng.integers(1, self.update_frequency)
         for _ in range(tk):
-            Ak = self.rng.choices(self._grad_ops, k=self.batch_size)
+            Ak = self._rng.choice(self._grad_ops, size=self.batch_size, replace=False)
             self.xp.copyto(self._g_sto, self._g)
             self._g_sto *= self.batch_size
             for g in Ak:
