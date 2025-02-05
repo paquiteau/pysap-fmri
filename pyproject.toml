@@ -1,11 +1,11 @@
 [project]
 name = "pysap-fmri"
-version = "0.0.0"
 description = "Python Sparse data Analysis Package external fMRI plugin."
 authors = [{name="Pierre-antoine Comby", email="pierre-antoine.comby@crans.org"}]
 readme = "README.rst"
 
 dependencies = ["modopt", "numpy", "tqdm", "joblib", "numba", "scipy", "pywavelets", "mri-nufft"]
+dynamic = ["version"]
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov", "pytest-xdist", "pytest-sugar"]
@@ -13,11 +13,18 @@ doc = ["pydata-sphinx-theme", "numpydoc", "sphinx_gallery", "sphinx", "sphinx-au
 dev = ["black", "isort", "ruff"]
 
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools", "setuptools-scm[toml]","wheel"]
 
 ######################
 # Tool configuration #
 ######################
+
+[tool.setuptools_scm]
+write_to = "src/fmri/_version.py"
+version_scheme = "python-simplified-semver"
+local_scheme="no-local-version"
+fallback_version="v99-dev"
+
 
 
 #linting using ruff
