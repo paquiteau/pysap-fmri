@@ -7,19 +7,17 @@ and RepeatOperator.
 import itertools
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from tracemalloc import BaseFilter
 
 import numpy as np
-from mrinufft import get_operator
 from modopt.base.backend import get_array_module
+from mrinufft import get_operator
+from numpy.typing import NDArray
 
-try:
-    from mrinufft.operators.interfaces.gpunufft import make_pinned_smaps
-except ImportError:
-    make_pinned_smaps = None
+from mrinufft.operators.interfaces.gpunufft import make_pinned_smaps
 
 from .utils.fft import fft, ifft
 
-MRINUFFT_AVAILABLE = True
 CUPY_AVAILABLE = True
 
 try:
@@ -51,14 +49,18 @@ class SpaceFourierBase(ABC):
         self.smaps = None
 
     @abstractmethod
-    def op(self, img):
+    def op(self, img: NDArray) -> NDArray:
         """Forward operator."""
         pass
 
     @abstractmethod
-    def adj_op(self, data):
+    def adj_op(self, data: NDArray) -> NDArray:
         """Adjoint operator."""
         pass
+
+    def data_consistency(self, data, obs_data):
+        """Data consistency operation"""
+        return self.adj_op(self.op(data) - obs_data)
 
 
 class CartesianSpaceFourier(SpaceFourierBase):
@@ -131,7 +133,7 @@ class CartesianSpaceFourier(SpaceFourierBase):
             ksp = fft(img, axis=axes)
             return ksp * self.mask
 
-    def adj_op(self, kspace_data):
+    def adj_op(self, data):
         """Apply the adjoint operator.
 
         Parameters
@@ -146,12 +148,12 @@ class CartesianSpaceFourier(SpaceFourierBase):
         """
         axes = tuple(range(-len(self.shape), 0))
         if self.n_coils > 1:
-            img = ifft(kspace_data, axis=axes)
+            img = ifft(data, axis=axes)
             if self.smaps is None:
                 return img
             return np.sum(img * np.conj(self.smaps), axis=1)
         else:
-            return ifft(kspace_data, axis=axes)
+            return ifft(data, axis=axes)
 
 
 class RepeatOperator(SpaceFourierBase):
@@ -160,22 +162,22 @@ class RepeatOperator(SpaceFourierBase):
     def __init__(self, fourier_ops):
         self.fourier_ops = list(fourier_ops)
 
-    def op(self, images):
+    def op(self, img):
         """Apply the forward operator."""
         final_ksp = np.empty(
-            (len(images), self.n_coils, self.n_samples), dtype=np.complex64
+            (len(img), self.n_coils, self.n_samples), dtype=np.complex64
         )
-        for i in range(len(images)):
-            final_ksp[i] = self.fourier_ops[i].op(images[i])
+        for i in range(len(img)):
+            final_ksp[i] = self.fourier_ops[i].op(img[i])
         return final_ksp
 
-    def adj_op(self, coeffs):
+    def adj_op(self, data):
         """Apply Adjoint Operator."""
         c = 1 if self.uses_sense else self.n_coils
-        xp = get_array_module(coeffs)
+        xp = get_array_module(data)
         final_image = xp.empty((self.n_frames, c, *self.shape), dtype=np.complex64)
-        for i in range(len(coeffs)):
-            final_image[i] = self.fourier_ops[i].adj_op(coeffs[i])
+        for i in range(len(data)):
+            final_image[i] = self.fourier_ops[i].adj_op(data[i])
         return final_image.squeeze()
 
     def __getattr__(self, attrName):
@@ -327,7 +329,7 @@ class PooledgpuNUFFTSpaceFourier(SpaceFourierBase):
 
     def _init_operators(self, **kwargs):
         # initialize all the operators
-        factory = get_operator("gpunufft")
+        factory: SpaceFourierBase = get_operator("gpunufft")
         self.fourier_ops = [None] * self.n_frames
         for i, p_img, p_ksp in zip(
             range(self.n_frames),
@@ -346,13 +348,13 @@ class PooledgpuNUFFTSpaceFourier(SpaceFourierBase):
                 **kwargs,
             )
 
-    def op(self, images):
+    def op(self, img):
         """Apply the forward operator."""
         final_ksp = np.empty(
-            (len(images), self.n_coils, self.n_samples), dtype=np.complex64
+            (len(img), self.n_coils, self.n_samples), dtype=np.complex64
         )
-        for i in range(len(images)):
-            final_ksp[i] = self.fourier_ops[i].op(images[i])
+        for i in range(len(img)):
+            final_ksp[i] = self.fourier_ops[i].op(img[i])
         return final_ksp
 
     def adj_op(self, coeffs):

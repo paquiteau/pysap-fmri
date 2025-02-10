@@ -4,7 +4,7 @@ description = "Python Sparse data Analysis Package external fMRI plugin."
 authors = [{name="Pierre-antoine Comby", email="pierre-antoine.comby@crans.org"}]
 readme = "README.rst"
 
-dependencies = ["modopt", "numpy", "tqdm", "joblib", "numba", "scipy", "pywavelets", "mri-nufft"]
+dependencies = ["modopt", "numpy", "tqdm", "joblib", "numba", "scipy", "pywavelets", "mri-nufft[cufinufft,gpunufft]"]
 dynamic = ["version"]
 
 [project.optional-dependencies]
@@ -13,7 +13,7 @@ doc = ["pydata-sphinx-theme", "numpydoc", "sphinx_gallery", "sphinx", "sphinx-au
 dev = ["black", "isort", "ruff"]
 
 [build-system]
-requires = ["setuptools", "setuptools-scm[toml]","wheel"]
+requires = ["setuptools", "setuptools-scm[toml]", "wheel"]
 
 ######################
 # Tool configuration #

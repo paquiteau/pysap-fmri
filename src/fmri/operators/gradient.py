@@ -1,4 +1,4 @@
-""""Gradient operators for MRI reconstruction.
+""" "Gradient operators for MRI reconstruction.
 
 Adapted from pysap-mri and Modopt libraries.
 """
@@ -6,7 +6,13 @@ Adapted from pysap-mri and Modopt libraries.
 from functools import cached_property
 
 import numpy as np
-import cupy as cp
+
+CUPY_AVAILABLE = True
+try:
+    import cupy as cp
+except ImportError:
+    CUPY_AVAILABLE = False
+
 from modopt.math.matrix import PowerMethod
 from modopt.opt.gradient import GradBasic, GradParent
 from modopt.base.backend import get_backend, get_array_module

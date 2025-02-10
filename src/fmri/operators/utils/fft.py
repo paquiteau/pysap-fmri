@@ -3,7 +3,7 @@
 import scipy as sp
 
 
-def fft(image, axis=-1):
+def fft(image, axis: int | tuple[int, ...] = -1):
     """Apply the FFT operator.
 
     Parameters
@@ -24,7 +24,7 @@ def fft(image, axis=-1):
     )
 
 
-def ifft(kspace_data, axis=-1):
+def ifft(kspace_data, axis: int | tuple[int, ...] = -1):
     """Apply the inverse FFT operator."""
     return sp.fft.fftshift(
         sp.fft.ifftn(sp.fft.ifftshift(kspace_data, axes=axis), norm="ortho", axes=axis),
