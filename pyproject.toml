@@ -4,7 +4,7 @@ description = "Python Sparse data Analysis Package external fMRI plugin."
 authors = [{name="Pierre-antoine Comby", email="pierre-antoine.comby@crans.org"}]
 readme = "README.rst"
 
-dependencies = ["modopt", "numpy", "tqdm", "joblib", "scipy", "pywavelets", "mri-nufft[cufinufft,gpunufft]"]
+dependencies = ["modopt", "numpy", "tqdm", "joblib", "scipy", "pywavelets", "mri-nufft[cufinufft]"]
 dynamic = ["version"]
 
 [project.optional-dependencies]
