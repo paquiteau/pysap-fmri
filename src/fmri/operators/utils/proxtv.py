@@ -2,29 +2,33 @@
 
 import numpy as np
 
-import numba as nb
+try:
+    import numba as nb
 
-nbr1d64 = nb.types.Array(nb.types.float64, 1, "A", readonly=True)
-nbr1d32 = nb.types.Array(nb.types.float32, 1, "A", readonly=True)
+    nbr1d64 = nb.types.Array(nb.types.float64, 1, "A", readonly=True)
+    nbr1d32 = nb.types.Array(nb.types.float32, 1, "A", readonly=True)
 
-nbr2d64 = nb.types.Array(nb.types.float64, 2, "A", readonly=True)
-nbr2d32 = nb.types.Array(nb.types.float32, 2, "A", readonly=True)
+    nbr2d64 = nb.types.Array(nb.types.float64, 2, "A", readonly=True)
+    nbr2d32 = nb.types.Array(nb.types.float32, 2, "A", readonly=True)
 
-nb2d64 = nb.types.Array(nb.types.float64, 2, "A")
-nb2d32 = nb.types.Array(nb.types.float32, 2, "A")
-nb1d64 = nb.types.Array(nb.types.float64, 1, "A")
-nb1d32 = nb.types.Array(nb.types.float32, 1, "A")
+    nb2d64 = nb.types.Array(nb.types.float64, 2, "A")
+    nb2d32 = nb.types.Array(nb.types.float32, 2, "A")
+    nb1d64 = nb.types.Array(nb.types.float64, 1, "A")
+    nb1d32 = nb.types.Array(nb.types.float32, 1, "A")
 
-nbr1d64c = nb.types.Array(nb.types.complex128, 1, "A", readonly=True)
-nbr1d32c = nb.types.Array(nb.types.complex64, 1, "A", readonly=True)
+    nbr1d64c = nb.types.Array(nb.types.complex128, 1, "A", readonly=True)
+    nbr1d32c = nb.types.Array(nb.types.complex64, 1, "A", readonly=True)
 
-nbr2d64c = nb.types.Array(nb.types.complex128, 2, "A", readonly=True)
-nbr2d32c = nb.types.Array(nb.types.complex64, 2, "A", readonly=True)
+    nbr2d64c = nb.types.Array(nb.types.complex128, 2, "A", readonly=True)
+    nbr2d32c = nb.types.Array(nb.types.complex64, 2, "A", readonly=True)
 
-nb2d64c = nb.types.Array(nb.types.complex128, 2, "A")
-nb2d32c = nb.types.Array(nb.types.complex64, 2, "A")
-nb1d64c = nb.types.Array(nb.types.complex128, 1, "A")
-nb1d32c = nb.types.Array(nb.types.complex64, 1, "A")
+    nb2d64c = nb.types.Array(nb.types.complex128, 2, "A")
+    nb2d32c = nb.types.Array(nb.types.complex64, 2, "A")
+    nb1d64c = nb.types.Array(nb.types.complex128, 1, "A")
+    nb1d32c = nb.types.Array(nb.types.complex64, 1, "A")
+
+except ImportError:
+    nb = None
 
 
 def linearizedTautString(y, lmbd, x):
@@ -120,9 +124,6 @@ def linearizedTautString(y, lmbd, x):
     return x
 
 
-linearizedTautString.jitter = nb.njit(nb1d32(nbr1d32, nb.types.float32, nb1d32))
-
-
 def tv_taut_string(y, lmbd):
     """Proximity operator for Total Variation in 1D.
 
@@ -147,11 +148,6 @@ def tv_taut_string(y, lmbd):
         linearizedTautString(y[:, i], lmbd, x[:, i])
     return x.reshape(y.shape)
 
-
-tv_taut_string.jitter = nb.njit(
-    nb2d32(nbr2d32, nb.types.float32),
-    parallel=True,
-)
 
 #######################################
 #   ProxTV 1D using an MM algorithm   #
@@ -201,15 +197,6 @@ def difft(x):
     y[1:-1] = x[:-1] - x[1:]
     y[-1] = x[-1]
     return y
-
-
-difft.jitter = nb.njit(
-    [
-        nb1d32(nb1d32),
-        nb1d64(nb1d64),
-    ],
-    fastmath=True,
-)
 
 
 def TDMA(a, b, c, d, x):
@@ -265,12 +252,6 @@ def TDMA(a, b, c, d, x):
         x[i - 1] = g[i - 1] - w[i - 1] * x[i]
 
 
-TDMA.jitter = nb.njit(
-    ["void(f8[:],f8[:],f8[:],f8[:],f8[:])", "void(f4[:],f4[:],f4[:],f4[:],f4[:])"],
-    fastmath=True,
-)
-
-
 def tv_mm(y, lmbd, max_iter=100, tol=1e-3):
     """Total Variation denoising using the Majoration-Minimization algorithm."""
     N = len(y)
@@ -298,14 +279,6 @@ def tv_mm(y, lmbd, max_iter=100, tol=1e-3):
     return x
 
 
-tv_mm.jitter = nb.njit(
-    [
-        nb1d32(nbr1d32, nb.types.float32, nb.types.int16, nb.types.float32),
-        nb1d64(nbr1d64, nb.types.float64, nb.types.int16, nb.types.float64),
-    ]
-)
-
-
 def vec_tv_mm(yvec, lmbd, max_iter=100, tol=1e-3):
     """Vectorized version of the TV-MM algorithm."""
     xvec2 = np.empty_like(yvec)
@@ -315,25 +288,6 @@ def vec_tv_mm(yvec, lmbd, max_iter=100, tol=1e-3):
         else:
             xvec2[:, i] = tv_mm(yvec[:, i], lmbd, max_iter, tol)
     return xvec2
-
-
-vec_tv_mm.jitter = nb.njit(
-    [
-        nb2d32(
-            nbr2d32,
-            nb.types.float32,
-            nb.types.int16,
-            nb.types.float32,
-        ),
-        nb2d64(
-            nbr2d64,
-            nb.types.float64,
-            nb.types.int16,
-            nb.types.float64,
-        ),
-    ],
-    parallel=True,
-)
 
 
 def running_sum_valid(arr, K):
@@ -362,13 +316,6 @@ def running_sum_valid(arr, K):
         ret[i] = s
         i += 1
     return ret
-
-
-running_sum_valid.jitter = nb.njit(
-    [nb1d32(nb1d32, nb.types.int16), nb1d64(nb1d64, nb.types.int16)],
-    fastmath=True,
-    error_model="numpy",
-)
 
 
 def gtv_mm_tol2(y, lmbd, K=1, max_iter=100, tol=1e-3):
@@ -428,27 +375,6 @@ def gtv_mm_tol2(y, lmbd, K=1, max_iter=100, tol=1e-3):
     return x
 
 
-gtv_mm_tol2.jitter = nb.njit(
-    [
-        nb.types.Array(nb.types.float64, 1, "A")(
-            nbr1d64,
-            nb.types.float64,
-            nb.types.int16,
-            nb.types.int16,
-            nb.types.float64,
-        ),
-        nb.types.Array(nb.types.float32, 1, "A")(
-            nbr1d32,
-            nb.types.float32,
-            nb.types.int16,
-            nb.types.int16,
-            nb.types.float32,
-        ),
-    ],
-    error_model="numpy",
-)
-
-
 def vec_gtv(yvec, lmbd, K, max_iter=100, tol=1e-3):
     """Vectorized version of the GTV-MM algorithm."""
     xvec2 = np.empty_like(yvec)
@@ -461,31 +387,6 @@ def vec_gtv(yvec, lmbd, K, max_iter=100, tol=1e-3):
     return xvec2
 
 
-vec_gtv.jitter = nb.njit(
-    [
-        nb2d64(
-            nbr2d64,
-            nb.types.float64,
-            nb.types.int16,
-            nb.types.int16,
-            nb.types.float64,
-        ),
-        nb2d32(
-            nbr2d32,
-            nb.types.float32,
-            nb.types.int16,
-            nb.types.int16,
-            nb.types.float32,
-        ),
-    ],
-    parallel=True,
-    error_model="numpy",
-)
-
-
-JITTED = False
-
-
 def jit_module():
     """Jit all functions in this module."""
     global JITTED
@@ -495,3 +396,98 @@ def jit_module():
     for name, func in globals().items():
         if hasattr(func, "jitter"):
             globals()[name] = func.jitter(func)
+
+
+JITTED = False
+
+if nb is not None:
+    vec_gtv.jitter = nb.njit(
+        [
+            nb2d64(
+                nbr2d64,
+                nb.types.float64,
+                nb.types.int16,
+                nb.types.int16,
+                nb.types.float64,
+            ),
+            nb2d32(
+                nbr2d32,
+                nb.types.float32,
+                nb.types.int16,
+                nb.types.int16,
+                nb.types.float32,
+            ),
+        ],
+        parallel=True,
+        error_model="numpy",
+    )
+
+    gtv_mm_tol2.jitter = nb.njit(
+        [
+            nb.types.Array(nb.types.float64, 1, "A")(
+                nbr1d64,
+                nb.types.float64,
+                nb.types.int16,
+                nb.types.int16,
+                nb.types.float64,
+            ),
+            nb.types.Array(nb.types.float32, 1, "A")(
+                nbr1d32,
+                nb.types.float32,
+                nb.types.int16,
+                nb.types.int16,
+                nb.types.float32,
+            ),
+        ],
+        error_model="numpy",
+    )
+
+    tv_mm.jitter = nb.njit(
+        [
+            nb1d32(nbr1d32, nb.types.float32, nb.types.int16, nb.types.float32),
+            nb1d64(nbr1d64, nb.types.float64, nb.types.int16, nb.types.float64),
+        ]
+    )
+
+    running_sum_valid.jitter = nb.njit(
+        [nb1d32(nb1d32, nb.types.int16), nb1d64(nb1d64, nb.types.int16)],
+        fastmath=True,
+        error_model="numpy",
+    )
+
+    vec_tv_mm.jitter = nb.njit(
+        [
+            nb2d32(
+                nbr2d32,
+                nb.types.float32,
+                nb.types.int16,
+                nb.types.float32,
+            ),
+            nb2d64(
+                nbr2d64,
+                nb.types.float64,
+                nb.types.int16,
+                nb.types.float64,
+            ),
+        ],
+        parallel=True,
+    )
+    linearizedTautString.jitter = nb.njit(nb1d32(nbr1d32, nb.types.float32, nb1d32))
+
+    TDMA.jitter = nb.njit(
+        ["void(f8[:],f8[:],f8[:],f8[:],f8[:])", "void(f4[:],f4[:],f4[:],f4[:],f4[:])"],
+        fastmath=True,
+    )
+
+    tv_taut_string.jitter = nb.njit(
+        nb2d32(nbr2d32, nb.types.float32),
+        parallel=True,
+    )
+
+    difft.jitter = nb.njit(
+        [
+            nb1d32(nb1d32),
+            nb1d64(nb1d64),
+        ],
+        fastmath=True,
+    )

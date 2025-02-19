@@ -10,7 +10,7 @@ from modopt.opt.algorithms import ForwardBackward, POGM
 import numpy as np
 
 
-from .utils.proxtv import tv_taut_string, vec_tv_mm, vec_gtv, jit_module
+# from .utils.proxtv import tv_taut_string, vec_tv_mm, vec_gtv, jit_module
 
 
 class InTransformSparseThreshold(SparseThreshold):
@@ -58,7 +58,7 @@ class ProxTV1d:
         self.kwargs = kwargs
         self.dtype = None
 
-        jit_module()
+        # jit_module()
 
         if callable(method):
             self.method = method
