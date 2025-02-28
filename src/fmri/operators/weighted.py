@@ -46,7 +46,7 @@ class WeightedSparseThreshold(SparseThreshold):
         weight_type="scale_based",
         zero_weight_coarse=True,
         linear=None,
-        **kwargs
+        **kwargs,
     ):
         if linear is None:
             linear = Identity()
@@ -79,7 +79,7 @@ class WeightedSparseThreshold(SparseThreshold):
             else:
                 if len(w) != num_scales:
                     raise ValueError(
-                        "The number of weights dont match " "the number of scales"
+                        "The number of weights dont match the number of scales"
                     )
                 weights = w
             for i, scale_shape in enumerate(np.unique(self.cf_shape, axis=0)):
@@ -383,7 +383,7 @@ class AutoWeightedSparseThreshold(SparseThreshold):
         threshold_estimation="sure",
         threshold_scaler=1.0,
         synthesis=True,
-        **kwargs
+        **kwargs,
     ):
         if linear is None:
             linear = Identity()

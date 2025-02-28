@@ -179,7 +179,7 @@ def tile_view(
         ax.text(
             0.05,
             0.95,
-            f"{axis_label}={step*i}",
+            f"{axis_label}={step * i}",
             ha="left",
             va="top",
             transform=ax.transAxes,

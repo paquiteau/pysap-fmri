@@ -118,7 +118,6 @@ class SequentialReconstructor(BaseFMRIReconstructor):
     def _reconstruct_frame(
         self, kspace_data, i, x_init, grad_kwargs, opt_kwargs, n_iter, progbar
     ):
-
         xp, _ = get_backend(self.compute_backend)
         # only recreate gradient if the trajectory change.
         grad_op = self.get_grad_op(
@@ -288,7 +287,6 @@ class StochasticSequentialReconstructor(BaseFMRIReconstructor):
         max_lip = max(g.spec_rad for g in grad_list)
 
         if algorithm == "accproxsvrg":
-
             opt = AccProxSVRG(
                 x=xp.zeros(grad_list[0].shape, dtype="complex64"),
                 grad_list=grad_list,
@@ -301,7 +299,6 @@ class StochasticSequentialReconstructor(BaseFMRIReconstructor):
             )
 
         elif algorithm == "m2sg":
-
             opt = MS2GD(
                 x=xp.zeros(self.fourier_op.shape, dtype="complex64"),
                 grad_list=grad_list,
@@ -325,7 +322,6 @@ class StochasticSequentialReconstructor(BaseFMRIReconstructor):
         del opt
         gc.collect()
         for i in progbar_main:  # Parallel
-
             opt = POGM(
                 x_anat,
                 x_anat,
