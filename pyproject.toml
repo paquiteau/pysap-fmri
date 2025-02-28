@@ -29,7 +29,7 @@ fallback_version="v99-dev"
 
 #linting using ruff
 [tool.ruff]
-extend-exclude = [ "example_*.py" ]
+extend-exclude = [ "example_*.py", "src/fmri/_version.py"]
 [tool.ruff.lint]
 select = ["E", "F", "B", "Q", "UP", "D"]
 ignore = [
