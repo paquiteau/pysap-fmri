@@ -1,4 +1,5 @@
-""" "Gradient operators for MRI reconstruction.
+"""
+Gradient operators for MRI reconstruction.
 
 Adapted from pysap-mri and Modopt libraries.
 """
@@ -7,15 +8,15 @@ from functools import cached_property
 
 import numpy as np
 
+from modopt.base.backend import get_array_module, get_backend
+from modopt.math.matrix import PowerMethod
+from modopt.opt.gradient import GradBasic, GradParent
+
 CUPY_AVAILABLE = True
 try:
     import cupy as cp
 except ImportError:
     CUPY_AVAILABLE = False
-
-from modopt.math.matrix import PowerMethod
-from modopt.opt.gradient import GradBasic, GradParent
-from modopt.base.backend import get_backend, get_array_module
 
 
 def check_lipschitz_cst(f, x_shape, x_dtype, lipschitz_cst, max_nb_of_iter=10):
@@ -252,7 +253,7 @@ class CustomGradAnalysis(GradParent):
         self.shape = fourier_op.shape
 
     def get_grad(self, x):
-        """Get the gradient value"""
+        """Get the gradient value."""
         if self.lazy:
             self.obs_data_gpu.set(self.obs_data)
         self.grad = self.fourier_op.data_consistency(x, self.obs_data_gpu)
@@ -260,12 +261,15 @@ class CustomGradAnalysis(GradParent):
 
     @cached_property
     def spec_rad(self):
+        """Calculate the Lipschitz constant."""
         return self.fourier_op.get_lipschitz_cst()
 
     def inv_spec_rad(self):
+        """Return the inverse of the spectral radius."""
         return 1.0 / self.spec_rad
 
     def cost(self, x, *args, **kwargs):
+        """Compute associated cost."""
         xp = get_array_module(x)
         cost = xp.linalg.norm(self.fourier_op.op(x) - self.obs_data)
         if xp != np:

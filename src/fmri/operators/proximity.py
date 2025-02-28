@@ -11,6 +11,10 @@ import numpy as np
 
 
 # from .utils.proxtv import tv_taut_string, vec_tv_mm, vec_gtv, jit_module
+tv_taut_string = None
+vec_tv_mm = None
+vec_gtv = None
+jit_module = None
 
 
 class InTransformSparseThreshold(SparseThreshold):

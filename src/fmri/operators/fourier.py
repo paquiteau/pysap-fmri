@@ -7,7 +7,6 @@ and RepeatOperator.
 import itertools
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from tracemalloc import BaseFilter
 
 import numpy as np
 from modopt.base.backend import get_array_module
@@ -59,7 +58,7 @@ class SpaceFourierBase(ABC):
         pass
 
     def data_consistency(self, data, obs_data):
-        """Data consistency operation"""
+        """Compute data consistency operation."""
         return self.adj_op(self.op(data) - obs_data)
 
 

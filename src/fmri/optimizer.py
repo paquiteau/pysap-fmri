@@ -42,7 +42,6 @@ class AccProxSVRG(SetUp):
         seed=None,
         **kwargs,
     ):
-
         super().__init__(**kwargs)
 
         # Set the initial variable values
@@ -64,7 +63,7 @@ class AccProxSVRG(SetUp):
             beta = (1 - np.sqrt(step_size)) / (1 + np.sqrt(step_size))
         self.beta = beta
         self.beta_update = None
-        self._grad_ops = grad_list
+        self._grad_ops = [*fourier_op_list]  # FIXME
         self._prox = prox
 
         self._rng = np.random.default_rng(seed)
@@ -181,7 +180,6 @@ class MS2GD(SetUp):
         seed=None,
         **kwargs,
     ):
-
         super().__init__(**kwargs)
 
         # Set the initial variable values
@@ -207,7 +205,6 @@ class MS2GD(SetUp):
 
     def _update(self):
         """Update the variables."""
-
         # Compute the average gradient.
         for g in self._grad_ops:
             self._g += g.get_grad(self._x)

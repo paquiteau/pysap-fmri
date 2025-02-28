@@ -9,9 +9,8 @@ import cupy as cp
 import logging
 
 import gc
-from functools import cached_property
 
-from modopt.base.backend import get_backend, get_array_module
+from modopt.base.backend import get_backend
 import numpy as np
 import copy
 from tqdm.auto import tqdm, trange
@@ -22,7 +21,6 @@ from .utils import OPTIMIZERS, initialize_opt
 
 from modopt.opt.algorithms import POGM
 from modopt.opt.linear import Identity
-from modopt.opt.gradient import GradParent
 from ..optimizer import AccProxSVRG, MS2GD
 
 logger = logging.getLogger("pysap-fmri")
