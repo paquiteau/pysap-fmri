@@ -10,7 +10,7 @@ dynamic = ["version"]
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov", "pytest-xdist", "pytest-sugar"]
 doc = ["pydata-sphinx-theme", "numpydoc", "sphinx_gallery", "sphinx", "sphinx-autoapi"]
-dev = ["black", "isort", "ruff"]
+dev = ["ruff"]
 
 [build-system]
 requires = ["setuptools", "setuptools-scm[toml]", "wheel"]
