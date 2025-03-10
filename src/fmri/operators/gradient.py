@@ -219,6 +219,8 @@ class GradSynthesis(GradBaseMRI):
         self.linear_op = linear_op
         n_channels = fourier_op.n_coils if not fourier_op.uses_sense else 1
         coef = linear_op.op(np.squeeze(np.zeros((n_channels, *fourier_op.shape))))
+        # Try the reverse:
+        adj_coeffs = linear_op.adj_op(coef)
         self.linear_op_coeffs_shape = coef.shape
         self.shape = coef.shape
         super().__init__(

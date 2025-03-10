@@ -237,7 +237,7 @@ def wavelet_noise_estimate(wavelet_coeffs, coeffs_shape, sigma_est):
     xp = get_array_module(wavelet_coeffs)
 
     sigma_ret = xp.ones(len(coeffs_shape))
-    sigma_ret[0] = xp.NaN
+    sigma_ret[0] = xp.nan
     start = 0
     stop = 0
     if sigma_est is None:
@@ -263,7 +263,7 @@ def wavelet_noise_estimate(wavelet_coeffs, coeffs_shape, sigma_est):
             start = stop
     elif sigma_est == "global":
         sigma_ret *= _sigma_mad(wavelet_coeffs[-np.prod(coeffs_shape[-1]) :])
-    sigma_ret[0] = xp.NaN
+    sigma_ret[0] = np.nan
     return sigma_ret
 
 
